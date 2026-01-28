@@ -167,7 +167,7 @@ for img_path in sample_images:
     intensities.extend(img_array.flatten())
 
 plt.figure(figsize = (10, 4))
-plt.hist(intensities, bins = 50, color = 'violet', alpha = 0.7)
+plt.hist(intensities, bins = 50, color = 'purple', alpha = 0.7)
 plt.title ("Pixel Intensity Distribution for Sample Scissors Images")
 plt.xlabel ("Pixel Intensity")
 plt.ylabel ("Frequency")
@@ -277,12 +277,130 @@ ax.grid(True, alpha = 0.3)
 plt.tight_layout()
 plt.show(block = False); plt.pause (2)
 
-# Now we will create a summary table of all the findings obtained till now
-print(("\n ------ DATASET SUMMARY ------"))
-print(f"Total number of images: {sum(counts)}")
+# 6) RGB Channel Analysis (color distribution patterns of the images present in out dataset)
+plt.close("all")
+fig, axes = plt.subplots(1, 3, figsize = (18, 5))
+
+for idx, cls in enumerate(classes):
+    sample_images = random.sample(list((directory / cls).iterdir()), 20)
+
+    r_means, g_means, b_means = [], [], []
+    for img_path in sample_images:
+        img_array = np.array(Image.open(img_path))
+        r_means.append(np.mean(img_array[:, :, 0]))
+        g_means.append(np.mean(img_array[:, :, 1]))
+        b_means.append(np.mean(img_array[:, :, 2]))
+
+    # Bar plot of average channel values
+    channels = ["blue", "green", "yellow"]
+    values = [np.mean(r_means), np.mean(g_means), np.mean(b_means)]
+
+    axes[idx].bar(channels, values, color = ["blue", "green", "yellow"], alpha = 0.7)
+    axes[idx].set_title(f"Average RGB Channel Values {cls.capitalize()}")
+    axes[idx].set_ylabel("Average Pixel Value")
+    axes[idx].set_ylim([0, 200])
+
+plt.tight_layout()  
+plt.show(block = False); plt.pause(2)
+
+# SUMMARY OF THE FINDINGS OBTAINED FROM THE EDA
+
+print("\n ------ EDA FINDINGS SUMMARY ------")
+
+# Basic dataset information
+print(f"Total number o images: {sum(counts)}")
 print(f"Number of classes: {len(classes)}")
 print(f"Class Distribution: {dict(zip(classes, counts))}")
-print("Class balance: ", "Balanced" if max(counts) - min(counts) < 0.1 * sum(counts) else "Imbalanced")
+print(f"Class balance: ", "Balanced" if max(counts) - min(counts) < 0.1 * sum(counts) else "Imbalanced")
 
-# ----------------------------------------------------------------------- Data Preprocessing ------------------------------------------------------------------------
+# Image characteristics and properties 
+sample_img_path = random.choice(list((directory / classes[0]).iterdir()))
+with Image.open(sample_img_path) as img:
+    sample_array = np.array(img)
+    img_width = img.width
+    img_height = img.height
+    img_channels = sample_array.shape[2] if len(sample_array.shape) == 3 else 1
+    img_dtype = sample_array.dtype
+    img_min = sample_array.min()
+    img_max = sample_array.max()
+
+print(f"Image dimension: {img_width} x {img_height} pixels ")
+print(f"Color channels: {img_channels} (RGB)")
+print(f"Data type: {img_dtype}")
+print(f"Pixel Value Range: [{img_min}, {img_max}]")
+
+# Statistical findings
+print(f"\nAverage Brightness by Class:")
+for cls, brightness in zip(classes, brightness_data):
+    print(f" {cls.capitalize()}: {brightness.round(2)}")
+
+print(f"\nAverage Contrast by Class:")
+for cls, contrast in zip(classes, contrast_data):
+    print(f"{cls.capitalize()}: {contrast.round(2)}")
+
+# Key onservations
+print("\nKEY OBSERVATIONS:")
+print("- The dataset is relatively balanced across the three classes with minimal class imbalance")
+print("- All the images have consistent dimensions")
+print("- Images are well-exposed with average brightness levels within acceptable ranges")
+print("- The green channel dominates due to the green screen background that is present in all the inages among the three classes")
+print("All three classes sho similar RGB distribution patterns")
+print("No significant color bias detected between the classes")
+
+# --------------------------------------------------------------  Train, Validation and Test sets split  ------------------------------------------------------------------------
+
+# First, it is important to split the data into train and test set before any processing to avoid data leakage. This ensures that the test set data remain unseen during
+# the training process and that no information from the test set influences the model training.
+
+# calculate the splitting sizes of the train and test sets
+total_samples = sum (counts)
+train_size = int(0.70 * total_samples)
+val_size = int(0.15 * total_samples)
+test_size = int(0.15 * total_samples)
+
+print(f"\nTotal samples: {total_samples}")
+print(f"Train size: {train_size}")
+print(f"Validation size: {val_size}")
+print(f"Test size: {test_size}")
+
+# Now we can split the data into train, validation and test sets:
+
+# 1) Load the training data (70%)
+train_data = tf.keras.utils.image_dataset_from_directory(
+    directory,
+    labels = "inferred",
+    label_mode = "int",
+    class_names = classes,
+    batch_size = 30,
+    image_size = (150, 150),
+    shuffle = True,
+    seed = 42,
+    validation_split = 0.30,
+    subset = "training"
+)
+
+# 2) Load the validation + test data (30%)
+val_test__data = tf.keras.utils.image_dataset_from_directory(
+    directory,
+    labels = "inferred",
+    label_mode = "int",
+    class_names = classes,
+    batch_size = 30,
+    image_size = (150, 150),
+    shuffle = True,
+    seed = 42,
+    validation_split = 0.30,
+    subset = "validation"
+)
+
+# 3) Now split the val_test_data into validation and test sets (15% each)
+val_batches = tf.data.experimental.cardinality(val_test__data)
+val_data = val_test__data.take(val_batches // 2)
+test_data = val_test__data.skip(val_batches // 2)
+
+print (f"\nSplitting summary:")
+print(f"Training batches: {tf.data.experimental.cardinality(train_data).numpy()}")
+print(f"Validation batches: {tf.data.experimental.cardinality(val_data).numpy()}")
+print(f"Test batches: {tf.data.experimental.cardinality(test_data).numpy()}")
+
 
