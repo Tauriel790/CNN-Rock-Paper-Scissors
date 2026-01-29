@@ -10,7 +10,7 @@ from PIL import Image
 from pathlib import Path
 
 
-# --------------------------------------------------------------------- Loading the data ----------------------------------------------------------------------------------
+# --------------------------------------------------------------------- LOADING THE DATA ----------------------------------------------------------------------------------
 # load the data into the working environment
 data = tf.keras.utils.image_dataset_from_directory(
     "data",
@@ -151,7 +151,7 @@ for img_path in sample_images:
     intensities.extend(img_array.flatten())
 
 plt.figure(figsize = (10, 4))
-plt.hist(intensities, bins = 50, color = 'pink', alpha = 0.7)
+plt.hist(intensities, bins = 50, color = 'green', alpha = 0.7)
 plt.title ("Pixel Intensity Distribution for Sample Rock Images")
 plt.xlabel ("Pixel Intensity")
 plt.ylabel ("Frequency")
@@ -347,7 +347,7 @@ print("- The green channel dominates due to the green screen background that is 
 print("All three classes sho similar RGB distribution patterns")
 print("No significant color bias detected between the classes")
 
-# --------------------------------------------------------------  Train, Validation and Test sets split  ------------------------------------------------------------------------
+# ------------------------------------------------------------- TRAIN, VALIDATION AND TEST SETS SPLIT  ------------------------------------------------------------------------
 
 # First, it is important to split the data into train and test set before any processing to avoid data leakage. This ensures that the test set data remain unseen during
 # the training process and that no information from the test set influences the model training.
@@ -365,7 +365,7 @@ print(f"Test size: {test_size}")
 
 # Now we can split the data into train, validation and test sets:
 
-# 1) Load the training data (70%)
+# 1) Load the training data (70%) ----------------------------------------------------------------------------------------------------------------------------------------------
 train_data = tf.keras.utils.image_dataset_from_directory(
     directory,
     labels = "inferred",
@@ -379,7 +379,7 @@ train_data = tf.keras.utils.image_dataset_from_directory(
     subset = "training"
 )
 
-# 2) Load the validation + test data (30%)
+# 2) Load the validation + test data (30%) --------------------------------------------------------------------------------------------------------------------------------
 val_test__data = tf.keras.utils.image_dataset_from_directory(
     directory,
     labels = "inferred",
@@ -393,7 +393,7 @@ val_test__data = tf.keras.utils.image_dataset_from_directory(
     subset = "validation"
 )
 
-# 3) Now split the val_test_data into validation and test sets (15% each)
+# 3) Now split the val_test_data into validation and test sets (15% each) -------------------------------------------------------------------------------------------------
 val_batches = tf.data.experimental.cardinality(val_test__data)
 val_data = val_test__data.take(val_batches // 2)
 test_data = val_test__data.skip(val_batches // 2)
@@ -403,4 +403,103 @@ print(f"Training batches: {tf.data.experimental.cardinality(train_data).numpy()}
 print(f"Validation batches: {tf.data.experimental.cardinality(val_data).numpy()}")
 print(f"Test batches: {tf.data.experimental.cardinality(test_data).numpy()}")
 
+# ---------------------------------------------------------------------- PROCESSING OF THE DATA ------------------------------------------------------------------------------
+# Now that the data has been splitted into train, validation and test sets, we can proceed with the processing of the data. Since the dimensions of the images have already 
+# been set to 150 x 150 pixels during the loading phase (image resizing step), we can now focus on normalizing the pixel values to a range of [0, 1] and applying data 
+# augmentation techniques to enhance the diversity of the training dataset.
 
+# 1) NORMALIZATION: -------------------------------------------------------------------------------------------------------------------------------------------------------
+# First of all, we normalize the pixel values to a range of [0, 1] by rescaling them by a factor of 1./255
+# This divides all the pixel values by 255, effectively transforming the original range of [0, 255] to [0, 1]
+normalization_layer = tf.keras.layers.Rescaling(1./255)
+
+# Apply the normalization to all the three sets 
+train_data = train_data.map(lambda x, y: (normalization_layer(x), y))
+val_data = val_data.map(lambda x, y: (normalization_layer(x), y))
+test_data = test_data.map(lambda x, y: (normalization_layer(x), y))
+
+# Now we verify that the normalization has been applied correctly by checking the pixel value ranges in a sample batch
+for images, labels in train_data.take(1):
+    print(f"\nOriginal image shape: {images.shape}")
+    print(f"Pixel value range after normalization: [{tf.reduce_min(images).numpy()}, {tf.reduce_max(images).numpy()}]")
+    print(f"Expected range: [0.0, 1.0]")
+
+    if tf.reduce_min(images) >= 0.0 and tf.reduce_max(images) <= 1.0:
+        print("Normalization applied correctly.")
+    else:
+        print("Normalization not applied correctly.")
+
+# 2) DATA AUGMENTATION: ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Data augmentation is a technique used to artificially increase the size and diversity of the training dataset by applying random transformations to the images. 
+# This helps improve the model's ability to generalize to unseen data and reduces overfitting.The augmentation techniques will be applied only to the training set, 
+# not to the validation or test sets because they should contain unaltered data to accurately evaluate the model's performance.
+
+# Based on the characteristics of the rock, paper, scissorsdataset, the data augmentation techniques that will be applied include:
+# 1) Random horizontal flipping: This flips the image horizontally with a 50% chance, which helps the model learn to recognize objects from different orientations.
+# 2) Random rotation: This rotates the image randomly within a specified range (e.g., ±20 degrees), which helps the model become invariant to small rotations of the 
+#    objects in the images.
+# 3) Random zooming: This randomly zooms in or out of the image within a specified range (e.g., 80% to 120%), which helps the model learn to recognize objects at different 
+#   scales.
+# 4) Random translation: This shifts the image randomly along the width and height within a specified range (e.g., ±20%), which helps the model become invariant to small
+#  translations of the objects in the images.
+
+# Vertical flipping and color augmentation were not included because they could distort the natural appearance of the hand gestures in the images and potentially confuse the model.
+
+# Define the data augmentation pipeline
+data_augmentation = tf.keras.Sequential([
+    tf.keras.layers.RandomFlip("horizontal"),
+    tf.keras.layers.RandomRotation(0.2),
+    tf.keras.layers.RandomZoom(0.1),
+    tf.keras.layers.RandomTranslation(0.2, 0.2)
+])
+
+# Now we apply the data augmentation techniques only to the training set
+# The training = True parameter ensures that the augmentation is only active during training and not during evauation
+train_data = train_data.map(
+    lambda x, y: (data_augmentation(x, training = True), y),
+    num_parallel_calls = tf.data.AUTOTUNE
+)
+
+# Now let's visualize some augmented images to see the effects that the data augmentation techniques had on the original images
+plt.close("all")
+
+fig, axes =plt.subplots(3, 5, figsize = (18, 10))
+
+for class_idx, cls in enumerate(classes):
+    # get one image from this class
+    class_batch = tf.keras.utils.image_dataset_from_directory(
+        directory,
+        labels = "inferred",
+        label_mode = "int",
+        class_names = classes,
+        batch_size = 1,
+        image_size = (150, 150),
+        shuffle = True,
+        seed = 42 + class_idx
+    )
+
+    for images, labels in class_batch.take(1):
+        original_image = normalization_layer(images)
+
+        # Column 0: Original (normalized but not augmented)
+        axes[class_idx, 0].imshow(original_image[0])
+        axes[class_idx, 0].set_title(f"{cls.capitalize()} \nOriginal", fontsize = 12, fontweight = "bold")
+
+        axes[class_idx, 0].axis("off")
+
+        # Set border for original image
+        for spine in axes[class_idx, 0].spines.values():
+            spine.set_visible(True)
+            spine.set_edgecolor("black")
+            spine.set_linewidth(2)
+
+        # Column 1-4: Augmented versions of the images
+        for aug_idx in range(1, 5):
+            augmented_image = data_augmentation(original_image, training = True)
+            axes[class_idx, aug_idx].imshow(augmented_image[0])
+            axes[class_idx, aug_idx].set_title(f"Augmented {aug_idx}", fontsize = 12, fontweight = "bold")
+            axes[class_idx, aug_idx].axis("off")
+
+plt.suptitle("Data Augmentation Examples: Original vs Augmented", fontsize = 16, fontweight = "bold", y = 1.05)
+plt.tight_layout()
+plt.show(block = False); plt.pause (3)
