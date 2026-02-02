@@ -431,15 +431,13 @@ for images, labels in train_data.take(1):
 
 # 2) DATA AUGMENTATION: ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Data augmentation is a technique used to artificially increase the size and diversity of the training dataset by applying random transformations to the images. 
-# This helps improve the model's ability to generalize to unseen data and reduces overfitting.The augmentation techniques will be applied only to the training set, 
+# This helps improve the model's ability to generalize to unseen data and reduces overfitting. The augmentation techniques will be applied only to the training set, 
 # not to the validation or test sets because they should contain unaltered data to accurately evaluate the model's performance.
 
 # Based on the characteristics of the rock, paper, scissorsdataset, the data augmentation techniques that will be applied include:
 # 1) Random horizontal flipping: This flips the image horizontally with a 50% chance, which helps the model learn to recognize objects from different orientations.
-# 2) Random rotation: This rotates the image randomly within a specified range (e.g., ±20 degrees), which helps the model become invariant to small rotations of the 
-#    objects in the images.
-# 3) Random zooming: This randomly zooms in or out of the image within a specified range (e.g., 80% to 120%), which helps the model learn to recognize objects at different 
-#   scales.
+# 2) Random rotation: This rotates the image randomly by +- 72 degrees (0.2 x 360°), which helps the model become invariant to natural hand tilting and different angles.
+# 3) Random zooming: This randomly zooms in or out by +- 10% (range: 90% to 110%), which helps the model learn to recognize gestures at different scales and distances from the camera.
 # 4) Random translation: This shifts the image randomly along the width and height within a specified range (e.g., ±20%), which helps the model become invariant to small
 #  translations of the objects in the images.
 
@@ -454,7 +452,7 @@ data_augmentation = tf.keras.Sequential([
 ])
 
 # Now we apply the data augmentation techniques only to the training set
-# The training = True parameter ensures that the augmentation is only active during training and not during evauation
+# The training = True parameter ensures that the augmentation is only active during training and not during evaluation
 train_data = train_data.map(
     lambda x, y: (data_augmentation(x, training = True), y),
     num_parallel_calls = tf.data.AUTOTUNE
@@ -516,3 +514,44 @@ for class_idx, cls in enumerate(classes):
 plt.suptitle("Data Augmentation Examples: Original vs Augmented", fontsize = 16, fontweight = "bold", y = 1.05)
 plt.tight_layout()
 plt.show(block = False); plt.pause (3)
+
+# ------------------------------------------------------------------- CNN ARCHITECTURES  ----------------------------------------------------------------------------------
+# Now that the data has been properly processed, we can proceed with the definition of the CNN architectures that will be used for the classification task. Three different CNN architectures
+# will be defined and compared: a simple CNN, a deeper CNN and a transfer learning model using a pre-trained network (MobileNetV2). Each architecture will be built, compiled, trained and evaluated
+# separately to assess their performance on the rock, paper, scissors dataset.
+
+# 1) SIMPLE/BASELINE CNN ARCHITECTURE: ------------------------------------------------------------------------------------------------------------------------------------------------
+# This baseline model employs minimal depth to test whether basi feature extraction is sufficient for the 3 class rock-paper-scissors task. With only 2 convultional block and no dropout,
+# this model serves as a benchmark for more complex architectures.
+
+model_1_baseline = tf.keras.Sequential([
+    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+
+    # Convolutional Block 1
+    # - 32 filters
+    # - 3x3 kernel size (which is a standard choice for capturing local patterns in images
+    # - ReLU activation function to introduce non-linearity
+    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1"),
+    # MaxPooling layer to reduce spatial dimensions and retain important features
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
+
+    # Conolutional Block 2
+    # - 64 filters: Learn more complex features
+    # - 3x3 kernel size
+    # - Progressively increasing the number of filters helps the model capture a wider range of features at different levels of abstraction
+    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool2"),
+
+    # Classification head
+    # Flatten layer to convert 2D feature maps to 1D feature vectors
+    tf.keras.layers.Flatten(name = "flatten"),
+    # Dense layer with 64 units and ReLU activation to learn complex patterns
+    tf.keras.layers.Dense(64, activation = "relu", name = "dense1"),
+    # Output layer with 3 units (one for each class) and softmax activation for multi-class classification
+    tf.keras.layers.Dense(3, activation = "softmax", name = "output")
+], name = "Baseline_CNN")
+
+# Summary of the model architecture
+print ("\nModel architecture - Simple/Baseline CNN:")
+model_1_baseline.summary()
+
