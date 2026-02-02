@@ -387,7 +387,7 @@ val_test__data = tf.keras.utils.image_dataset_from_directory(
     class_names = classes,
     batch_size = 30,
     image_size = (150, 150),
-    shuffle = True,
+    shuffle = False,
     seed = 42,
     validation_split = 0.30,
     subset = "validation"
@@ -503,3 +503,4 @@ for class_idx, cls in enumerate(classes):
 plt.suptitle("Data Augmentation Examples: Original vs Augmented", fontsize = 16, fontweight = "bold", y = 1.05)
 plt.tight_layout()
 plt.show(block = False); plt.pause (3)
+
