@@ -460,6 +460,19 @@ train_data = train_data.map(
     num_parallel_calls = tf.data.AUTOTUNE
 )
 
+# 3) Pipeline optimization: ------------------------------------------------------------------------------------------------------------------------------------------------
+# Adding shuffle buffer and prefetching for improved training performance
+AUTOTUNE = tf.data.AUTOTUNE
+
+# Adding shuffle buffer to training set for better batch mixing
+train_data = train_data.shuffle(buffer_size = 1000, seed = 42, reshuffle_each_iteration = True)
+
+# Adding prefetching to all datasets for improved performance
+train_data = train_data.prefetch(AUTOTUNE)
+val_data = val_data.prefetch(AUTOTUNE)
+test_data = test_data.prefetch(AUTOTUNE)
+
+# 4) VISUALIZATION OF AUGMENTED IMAGES: ---------------------------------------------------------------------------------------------------------------------------------
 # Now let's visualize some augmented images to see the effects that the data augmentation techniques had on the original images
 plt.close("all")
 
@@ -503,4 +516,3 @@ for class_idx, cls in enumerate(classes):
 plt.suptitle("Data Augmentation Examples: Original vs Augmented", fontsize = 16, fontweight = "bold", y = 1.05)
 plt.tight_layout()
 plt.show(block = False); plt.pause (3)
-
