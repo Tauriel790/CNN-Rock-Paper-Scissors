@@ -520,7 +520,7 @@ plt.show(block = False); plt.pause (3)
 # will be defined and compared: a simple CNN, a deeper CNN and a transfer learning model using a pre-trained network (MobileNetV2). Each architecture will be built, compiled, trained and evaluated
 # separately to assess their performance on the rock, paper, scissors dataset.
 
-# 1) SIMPLE/BASELINE CNN ARCHITECTURE: ------------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------- 1) SIMPLE/BASELINE CNN ARCHITECTURE: -----------------------------------------------------------------------
 # This baseline model employs minimal depth to test whether basi feature extraction is sufficient for the 3 class rock-paper-scissors task. With only 2 convultional block and no dropout,
 # this model serves as a benchmark for more complex architectures.
 
@@ -554,4 +554,56 @@ model_1_baseline = tf.keras.Sequential([
 # Summary of the model architecture
 print ("\nModel architecture - Simple/Baseline CNN:")
 model_1_baseline.summary()
+
+# ------------------------------------------------------------ 2) INTERMIDIATE CNN ARCHITECTURE: ------------------------------------------------------------------------------
+# This model compared with the baseline CNN architecture implementd above, adds a third convolutional block (with 128 filters) to capture more complex feature hierarchies.
+# Additionally, dropout layers (dropout rate of 0.5) are introduced after each convolutional block to mitigate overfitting by randomly deactivating neurons during training. 
+# This helps the model generalize better to unseen data.
+
+model_2_intermidiate = tf.keras.Sequential([
+    # Input layer
+    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+
+    # Convolutional Block 1:
+    # - 32 filters which will learn basic features such as edges, colors and simple textures
+    # - 3x3 kernel size to capture local patterns in the images
+    # - ReLU activation which intriduces non-linearity to help the model learn complex relationships between features
+    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1"),
+    # MaxPooling layer to reduce the spacial dimensions of the faature maps and retain the most important features
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
+
+    # Convolutional Block 2:
+    # - 64 filters to learn more complex features such as combinations of edges and textures like hand shapes and so on ..
+    # - The filters where doubled compared to the first block to allow the model to capture a wider range of features at different levels of abstraction
+    # - 3x3 kernel size to continue capturing local patterns
+    # - ReLU activation to maintain non-linearity in the model
+    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool2"),
+
+    # Convolutional Block 3:
+    # - 128 filters to learn even more complex features and higher-level representations of the images, such as specific hand gestures and finer details
+    # - 3x3 kernel size to maintain consistency in capturing local patterns
+    # - ReLU activation to continue introducing non-linearity
+    tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool3"),
+
+    # Classification head:
+    # Flatten layer to convert the 2D feature maps into a 1D feature vector that can be fed into the dense layers
+    tf.keras.layers.Flatten (name = "flatten"),
+    
+    # Dense layer with 128 units and ReLU activation to learn complex patterns and relationships between the features extracted by the convolutional blocks
+    tf.keras.layers.Dense (128, activation = "relu", name = "dense1"),
+
+    # Dropout layer with a dropout rate of 0.5 to mitigate overfitting by randomly deactivating neurons during training. This helps the model to generalize 
+    # better to unseen data
+    tf.keras.layers.Dropout(0.5, name = "dropout1"),
+
+    # Output layer with 3 units (one for each class) and softmax activation for multi-class classification
+    tf.keras.layers.Dense (3, activation = "softmax", name = "output")
+], name = "Intermediate_CNN")
+
+# Summary of the model architecture
+model_2_intermidiate.summary()
+
+# ------------------------------------------------------------ 3) ADVANCED CNN ARCHITECTURE ------------------------------------------------------------------------------------
 
