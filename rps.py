@@ -606,4 +606,68 @@ model_2_intermidiate = tf.keras.Sequential([
 model_2_intermidiate.summary()
 
 # ------------------------------------------------------------ 3) ADVANCED CNN ARCHITECTURE ------------------------------------------------------------------------------------
+# This model employes a VGG inspird architecture with double convolutional layers in each block. The double convolutions allow the network to learn more complex feature 
+# representations before spatial downsempling. We use 4 convolutional blocks with progressive filter increase (32, 64, 128, 256) to capture increasingly abstract features.
+# Dropout is applied after each pooling layer to reduce overfitting, and the classification head includes a dense layer with 256 units to learn complex patterns before the final output layer.
 
+model_3_advanced = tf.keras.Sequential([
+    # Input layer
+    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+
+    # ---------------------- Convolutional Block 1 (VGG-inspired): --------------------------------
+    # - first convolutional layer with 32 filters 
+    # - 3x3 kernel size 
+    # - ReLU activation to learn basic features such as edges and colors
+    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1a"),
+
+    # Second convolutional layer: refine basic features before downsampling
+    # Double convolution allows to learn more complex feature representations before spatial downsampling
+    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1b"),
+
+    # Maxpooling layer to reduce spatial dimensions and retain important features
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
+    # Dropout layer to mitigate overfitting
+    tf.keras.layers.Dropout(0.5, name = "dropout1"),
+
+    # ---------------------- Convolutional Block 2 (VGG-inspired): --------------------------------
+    # 64 filters to learn more complex features such as combinations of edges and textures like hand shapes and so on ..
+    # The filters where doubled compared to the first block to allow the model to capture a wider
+    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2a"),
+    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2b"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool2"),
+    tf.keras.layers.Dropout(0.5, name = "dropout2"),
+
+    # ---------------------- Convolutional Block 3 (VGG-inspired): --------------------------------
+    # 128 filters to learn even more complex features and higher-level representations of the images, such as specific hand gestures and finer details
+    tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3a"),
+    tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3b"),
+    tf.keras.layers.MAxPooling2D((2, 2), name = "maxpool3"),
+    tf.keras.layers.Dropout(0.5, name = "dropout3"),
+
+    # ---------------------- Convolutional Block 4 (VGG-inspired): --------------------------------
+    # 256 filters to capture highly abstract features and complex patterns in the images, such as specific hand gestures and finer details
+    # Single convolutional layer in this block to reduce computational complexity while still learning high-level features, and also because
+    # the spatial dimensions have been significantly reduced by the previous pooling layers, so a single convolution can effectively capture 
+    # the remaining features without overfitting
+    tf.keras.layers.Conv2D(256, (3, 3), activation = "relu", name = "conv4a"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool4"),
+    tf.keras.layers.Dropout(0.5, name = "dropout4"),
+
+    # Classification head:
+    # Flatten layer to convert 2D feature maps to 1D feature vectors
+    tf.keras.layers.Flatten(name = "flatten"),
+
+    # First dense layer with 256 units and ReLU activation to learn complex patterns and relationships between the features extracted by the convolutional blocks
+    tf.keras.layers.Dense(256, activation = "relu", name = "dense1"),
+    tf.keras.layers.Dropout(0.5, name = "dropout5"),
+
+    # Second dense layer with 128 units and ReLU activation to further learn complex patterns before the final output layer
+    tf.keras.layers.Dense(128, activation = "relu", name = "dense2"),
+    tf.keras.layers.Dropout(0.5, name = "dropout6"),
+
+    # Output layer with 3 units (one for each class) and softmax activation for multi-class classification
+    tf.keras.layers.Dense(3, activation = "softmax", name = "output")
+], name = "Advanced_CNN")
+
+# Summary of the model architecture
+model_3_advanced.summary()
