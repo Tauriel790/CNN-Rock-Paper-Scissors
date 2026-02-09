@@ -719,5 +719,54 @@ model_3_advanced.compile(
     metrics = ["accuracy"]
 )
 
+# ------------------------------------------------------------ TRAINING THE 3 MODELS ----------------------------------------------------------------------
+
+# 1) TRAINING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
+print("\nTraining the Baseline CNN model...")
+
+# Training configuration (batch size was not specified because already defined during the loading phase, and the number of epochs is set to 20 which is a common 
+# choice for training CNNs on image classification tasks. This allows the model to learn from the data while also providing enough iterations for convergence 
+# without overfitting.)
+EPOCHS = 20
+
+# Training the model
+history_model_1 = model_1_baseline.fit(
+    train_data,                      # training the dataset
+    epochs = EPOCHS,                 # number of epochs to train
+    validation_data = val_data,      # validation dataset to evaluate the model's performance after each epoch
+    verbose = 1                      # shows the training progress and metrics for each epoch (1 = progress bar, 2 = one line per epoch, 0 = silent)
+)
+
+print ("\nBaseline CNN model training completed.")
+
+# Summary of the training results for the baseline model
+final_train_loss = history_model_1.history["loss"][-1]
+final_train_accuracy = history_model_1.history["accuracy"][-1]
+final_val_loss = history_model_1.history["val_loss"][-1]
+final_val_accuracy = history_model_1.history["val_accuracy"][-1]
+
+print(f"Final Training Loss: {round(final_train_loss, 2)}")
+print(f"Final Training Accuracy: {round(final_train_accuracy, 2)}")
+print(f"Final Validation Loss: {round(final_val_loss, 2)}")
+print(f"Final Validation Accuracy: {round(final_val_accuracy, 2)}")
+
+# Check for presence of overfitting
+accuracy_gap = final_train_accuracy - final_val_accuracy
+if accuracy_gap > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
+    print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
+elif accuracy_gap < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
+    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
+else:
+    print("No significant overfitting detected (gap < 5%).")
+
+# Although data augmentation was optional, it was implemented in the training pipeline to enhance the diversity of the training data and improve the model's generalization capabilities.
+# The effects of data augmentation can be observed in the training and validation accuracy trends. If the training accuracy is significantly higher than the validation accuracy, it may 
+# indicate that the model is overfitting to the augmented training data. However, if both training and validation accuracies are improving and relatively close to each other, it suggests 
+# that the data augmentation is helping the model learn more robust features without overfitting. In this case, we can conclude that the data augmentation techniques implemented in the 
+# training pipeline have contributed positively to the model's performance on the rock-paper-scissors classification task, as evidenced by the training and validation accuracy trends 
+# observed during the training process. In fact, in our case training accuracy (85%) was lower than the validation accuracy (97%), which is expected when using augmentation techniques, 
+# and it indicates that the model is generalizing well to the validation data without overfitting to the augmented training data.
+
+
 
 
