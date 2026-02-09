@@ -641,7 +641,7 @@ model_3_advanced = tf.keras.Sequential([
     # 128 filters to learn even more complex features and higher-level representations of the images, such as specific hand gestures and finer details
     tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3a"),
     tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3b"),
-    tf.keras.layers.MAxPooling2D((2, 2), name = "maxpool3"),
+    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool3"),
     tf.keras.layers.Dropout(0.5, name = "dropout3"),
 
     # ---------------------- Convolutional Block 4 (VGG-inspired): --------------------------------
@@ -671,3 +671,53 @@ model_3_advanced = tf.keras.Sequential([
 
 # Summary of the model architecture
 model_3_advanced.summary()
+
+# ------------------------------------------------------------ COMPILING THE 3 MODELS ----------------------------------------------------------------------
+
+# 1) COMPILING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
+print ("\nCompiling the Baseline CNN model...")
+
+model_1_baseline.compile(
+    # The Adam optimizer is chosen for its efficiency and adaptive learning rate capabilities, which can help the model converge faster and achieve better 
+    # performance on the rock-paper-scissors classification task. And we use Adam with the defaul learning rate of 0.001 which is a common starting point 
+    # for many tasks and often works well without the need for extensive hyperparameter tuning.
+    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+    
+    # Loss function: Sparse Categorical Crossentropy is used for multi-class classification problems where the labels are provided as integers. It is 
+    # suitable for our rock-paper-scissors task because we have three classes (rock, paper, scissors) and the labels are encoded as integers (0, 1, 2). 
+    # This loss function computes the cross-entropy loss between the true labels and the predicted probabilities output by the model, which helps to 
+    # optimize the model's performance in classifying the images correctly.
+    # - "sparse" => indicates that the labels are provided as integers rather than one-hot encoded vectors
+    # - "Categorical" => indicates that it is a multi-class classification problem (paper, rock, scissors)
+    # - "Crossentropy" => measures the difference between the true labels and the predicted probabilities, which is what we want to minimize during training
+    loss = "sparse_categorical_crossentropy",
+
+    # Metrics: Accuracy is chosen as the primary metric to evaluate the performance of the model because it directly measures the proportion of correctly 
+    # classified images out of the total number of images.
+    metrics = ["accuracy"]
+)
+
+# 2) COMPILING THE INTERMIDIATE CNN MODEL --------------------------------------------------------------------------------------
+print("\nCompiling the Intermediate CNN model...")
+
+# We use the same techiques for compiling the intermediate model as the baseline model because they are both suitable for our 
+# multi-class classification task and provide a good starting point for training.
+model_2_intermidiate.compile(
+    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+    loss = "sparse_categorical_crossentropy",
+    metrics = ["accuracy"]
+)
+
+# 3) COMPILING THE ADVANCED CNN MODEL --------------------------------------------------------------------------------------
+print("\nCompiling the Advanced CNN model...")
+
+# We use the same techiques for compiling the advanced model as the baseline and intermediate models because they are all 
+# suitable for our multi-class classification task and provide a good starting point for training.
+model_3_advanced.compile(
+    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+    loss = "sparse_categorical_crossentropy",
+    metrics = ["accuracy"]
+)
+
+
+
