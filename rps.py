@@ -752,6 +752,8 @@ print(f"Final Validation Accuracy: {round(final_val_accuracy, 2)}")
 
 # Check for presence of overfitting
 accuracy_gap = final_train_accuracy - final_val_accuracy
+print (accuracy_gap)
+
 if accuracy_gap > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
     print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
 elif accuracy_gap < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
@@ -759,6 +761,7 @@ elif accuracy_gap < 0.05:   # 5-10% gap is generally acceptable, but less than 5
 else:
     print("No significant overfitting detected (gap < 5%).")
 
+# Results:
 # Although data augmentation was optional, it was implemented in the training pipeline to enhance the diversity of the training data and improve the model's generalization capabilities.
 # The effects of data augmentation can be observed in the training and validation accuracy trends. If the training accuracy is significantly higher than the validation accuracy, it may 
 # indicate that the model is overfitting to the augmented training data. However, if both training and validation accuracies are improving and relatively close to each other, it suggests 
@@ -767,6 +770,52 @@ else:
 # observed during the training process. In fact, in our case training accuracy (85%) was lower than the validation accuracy (97%), which is expected when using augmentation techniques, 
 # and it indicates that the model is generalizing well to the validation data without overfitting to the augmented training data.
 
+# 2) TRAINING THE INTERMIDIATE CNN MODEL --------------------------------------------------------------------------------------
+print("\nTraining the Intermediate CNN model...")
 
+# Training configuration is the same as the baseline model to ensure a fair comparison between the two architectures.
+EPOCHS = 20
 
+# Training the model
+history_model_2 = model_2_intermidiate.fit(
+    train_data,                   # Training dataset
+    epochs = EPOCHS,              # 20 epochs
+    validation_data = val_data,   # validation dataset
+    verbose = 1                   # shows the progress
+)
+
+print("\nIntermidiate CNN model training complete")
+
+# Summary of results
+final_train_loss_2 = history_model_2.history["loss"][-1]
+final_train_accuracy_2 = history_model_2.history["accuracy"][-1]
+final_val_loss_2 = history_model_2.history["val_loss"][-1]
+final_val_accuracy_2 = history_model_2.history["val_accuracy"][-1]
+
+print(f"Final Training Loss: {round(final_train_loss_2, 2)}")
+print(f"Final Training Accuracy: {round(final_train_accuracy_2, 2)}")
+print(f"Final Validation Loss: {round(final_val_loss_2, 2)}")
+print(f"Final Validation Accuracy: {round(final_val_accuracy_2, 2)}")
+
+# Checking for the presense of overfitting
+accuracy_gap_2 = final_train_accuracy_2 - final_val_accuracy_2
+print(accuracy_gap_2)
+
+if accuracy_gap_2 > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
+    print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
+elif accuracy_gap_2 < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
+    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
+else:
+    print("No significant overfitting detected (gap < 5%).")
+
+# Results:
+# Model 2 demonstates a greater performance across all metrics if we compare it with the resutls of model 1:
+# - Validation accuracy improved from 97% to 98%
+# - Training accuracy increased from 85% to 92%
+# - Validation loss decreased from 0.11 to 0.8 (meaning more confident predictions)
+# - Accuracy gap reduced from -12.7% to -5.7% (meaning better training stability)
+
+# The addition of the third convolutional block with 128 filters and dropout regularization of 0.5, allowed the model to learn more complex features
+# while mantaining great generalization. The smaller accuracy gap indicates that model 2 handles data augmentation more efficiently while achieving 
+# higher performance on both training and validation sets
 
