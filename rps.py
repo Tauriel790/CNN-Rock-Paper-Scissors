@@ -364,44 +364,52 @@ print(f"Validation size: {val_size}")
 print(f"Test size: {test_size}")
 
 # Now we can split the data into train, validation and test sets:
-
-# 1) Load the training data (70%) ----------------------------------------------------------------------------------------------------------------------------------------------
-train_data = tf.keras.utils.image_dataset_from_directory(
+# 1) Load all the data with shuffle = True
+all_data = tf.keras.utils.image_dataset_from_directory(
     directory,
     labels = "inferred",
     label_mode = "int",
     class_names = classes,
     batch_size = 30,
-    image_size = (150, 150),
+    image_size = (150, 150), 
     shuffle = True,
-    seed = 42,
-    validation_split = 0.30,
-    subset = "training"
+    seed = 42
 )
 
-# 2) Load the validation + test data (30%) --------------------------------------------------------------------------------------------------------------------------------
-val_test__data = tf.keras.utils.image_dataset_from_directory(
-    directory,
-    labels = "inferred",
-    label_mode = "int",
-    class_names = classes,
-    batch_size = 30,
-    image_size = (150, 150),
-    shuffle = False,
-    seed = 42,
-    validation_split = 0.30,
-    subset = "validation"
-)
+# Calculation of the number of batches
+total_batches = tf.data.experimental.cardinality(all_data).numpy()
+train_batches = int(0.70 * total_batches)
+val_batches = int(0.15 * total_batches)
 
-# 3) Now split the val_test_data into validation and test sets (15% each) -------------------------------------------------------------------------------------------------
-val_batches = tf.data.experimental.cardinality(val_test__data)
-val_data = val_test__data.take(val_batches // 2)
-test_data = val_test__data.skip(val_batches // 2)
+print(f"\nBatches distribution:")
+print(f"Total batches: {total_batches}")
+print(f"Train batches: {train_batches}")
+print(f"Val batches: {val_batches}")
+print(f"Test batches: {total_batches - train_batches - val_batches}")
 
-print (f"\nSplitting summary:")
-print(f"Training batches: {tf.data.experimental.cardinality(train_data).numpy()}")
-print(f"Validation batches: {tf.data.experimental.cardinality(val_data).numpy()}")
-print(f"Test batches: {tf.data.experimental.cardinality(test_data).numpy()}")
+# split the data
+train_data = all_data.take(train_batches)
+remaining = all_data.skip(train_batches)
+val_data = remaining.take(val_batches)
+test_data = remaining.skip(val_batches)
+
+# Now we verify the split
+print(f"\nTrain: {tf.data.experimental.cardinality(train_data).numpy()}")
+print(f"Val: {tf.data.experimental.cardinality(val_data).numpy()}")
+print(f"\nTest: {tf.data.experimental.cardinality(test_data).numpy()}")
+
+# Than, we verify the class distribution
+def count_labels (ds, name):
+    ys = []
+    for _, y in ds:
+        ys.extend(y.numpy())
+    vals, cnts = np.unique(ys, return_counts = True)
+    print (f"{name}: {dict(zip(vals, cnts))}")
+
+print (f"\nClass distribution:")
+count_labels(train_data, "Train")
+count_labels(val_data, "Val")
+count_labels(test_data, "Test")
 
 # ---------------------------------------------------------------------- PROCESSING OF THE DATA ------------------------------------------------------------------------------
 # Now that the data has been splitted into train, validation and test sets, we can proceed with the processing of the data. Since the dimensions of the images have already 
@@ -606,66 +614,68 @@ model_2_intermidiate = tf.keras.Sequential([
 model_2_intermidiate.summary()
 
 # ------------------------------------------------------------ 3) ADVANCED CNN ARCHITECTURE ------------------------------------------------------------------------------------
-# This model employes a VGG inspird architecture with double convolutional layers in each block. The double convolutions allow the network to learn more complex feature 
-# representations before spatial downsempling. We use 4 convolutional blocks with progressive filter increase (32, 64, 128, 256) to capture increasingly abstract features.
-# Dropout is applied after each pooling layer to reduce overfitting, and the classification head includes a dense layer with 256 units to learn complex patterns before the final output layer.
+# This model implements a modern CNN architecture following best practices from state of the art networks like ResNet and EfficientNet. The architecture features 4 convolutional 
+# blocks with progressive filter expansion (32-64-128-256) and incorporates BatchNormalization for training stabilization.
 
 model_3_advanced = tf.keras.Sequential([
     # Input layer
     tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
 
-    # ---------------------- Convolutional Block 1 (VGG-inspired): --------------------------------
+    # ---------------------- Convolutional Block 1 (basic feature extraction): --------------------------------
     # - first convolutional layer with 32 filters 
     # - 3x3 kernel size 
-    # - ReLU activation to learn basic features such as edges and colors
-    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1a"),
+    # - use_bias = False because BatchNormalization provides its own bias term
+    tf.keras.layers.Conv2D(32, 3, padding = "same", use_bias = False, name = "conv1"),
 
-    # Second convolutional layer: refine basic features before downsampling
-    # Double convolution allows to learn more complex feature representations before spatial downsampling
-    tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1b"),
+    # BatchNomralization normalizes the output of the convolution to have mean = 0 and variance = 1
+    # This stabilizes training and allows higher learning rates
+    tf.keras.layers.BatchNormalization(name = "bn1"),
 
-    # Maxpooling layer to reduce spatial dimensions and retain important features
-    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
-    # Dropout layer to mitigate overfitting
-    tf.keras.layers.Dropout(0.5, name = "dropout1"),
+    # ReLU activation applied after normalization
+    tf.keras.layers.Activation("relu", name = "relu1"),
 
-    # ---------------------- Convolutional Block 2 (VGG-inspired): --------------------------------
-    # 64 filters to learn more complex features such as combinations of edges and textures like hand shapes and so on ..
-    # The filters where doubled compared to the first block to allow the model to capture a wider
-    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2a"),
-    tf.keras.layers.Conv2D(64, (3, 3), activation = "relu", name = "conv2b"),
-    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool2"),
-    tf.keras.layers.Dropout(0.5, name = "dropout2"),
+    # MaxPooling reduces spatial dimensions by half
+    tf.keras.layers.MaxPooling2D(name = "maxpool1"),
 
-    # ---------------------- Convolutional Block 3 (VGG-inspired): --------------------------------
-    # 128 filters to learn even more complex features and higher-level representations of the images, such as specific hand gestures and finer details
-    tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3a"),
-    tf.keras.layers.Conv2D(128, (3, 3), activation = "relu", name = "conv3b"),
-    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool3"),
-    tf.keras.layers.Dropout(0.5, name = "dropout3"),
+    # ---------------------- Convolutional Block 2 (Mid level featue extraction): --------------------------------
+    # - 64 filters to learn more complex feature combinations
+    tf.keras.layers.Conv2D(64, 3, padding = "same", use_bias = False, name = "conv2"),
+    tf.keras.layers.BatchNormalization(name = "bn2"),
+    tf.keras.layers.Activation("relu", name = "relu2"),
 
-    # ---------------------- Convolutional Block 4 (VGG-inspired): --------------------------------
-    # 256 filters to capture highly abstract features and complex patterns in the images, such as specific hand gestures and finer details
-    # Single convolutional layer in this block to reduce computational complexity while still learning high-level features, and also because
-    # the spatial dimensions have been significantly reduced by the previous pooling layers, so a single convolution can effectively capture 
-    # the remaining features without overfitting
-    tf.keras.layers.Conv2D(256, (3, 3), activation = "relu", name = "conv4a"),
-    tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool4"),
-    tf.keras.layers.Dropout(0.5, name = "dropout4"),
+    # Spatial dimension reduction
+    tf.keras.layers.MaxPooling2D(name = "maxpool2"),
 
-    # Classification head:
-    # Flatten layer to convert 2D feature maps to 1D feature vectors
-    tf.keras.layers.Flatten(name = "flatten"),
+    # ---------------------- Convolutional Block 3 (high level feature extraction): --------------------------------
+    # 128 filters to capture hand gestures shaoes and specific patterns
+    tf.keras.layers.Conv2D(128, 3, padding = "same", use_bias = False, name = "conv3"),
+    tf.keras.layers.BatchNormalization(name = "bn3"),
+    tf.keras.layers.Activation("relu", name = "relu3"),
+    tf.keras.layers.MaxPooling2D (name = "maxpool3"),
 
-    # First dense layer with 256 units and ReLU activation to learn complex patterns and relationships between the features extracted by the convolutional blocks
-    tf.keras.layers.Dense(256, activation = "relu", name = "dense1"),
-    tf.keras.layers.Dropout(0.5, name = "dropout5"),
+    # ---------------------- Convolutional Block 4 (Abstract feature extractions): --------------------------------
+    # 256 filters to learn the most abstract representation of complete gestures
+    tf.keras.layers.Conv2D(256, 3, padding = "same", use_bias = False, name = "conv4"),
+    tf.keras.layers.BatchNormalization(name = "bn4"),
+    tf.keras.layers.MaxPooling2D(name = "maxpool4"),
 
-    # Second dense layer with 128 units and ReLU activation to further learn complex patterns before the final output layer
-    tf.keras.layers.Dense(128, activation = "relu", name = "dense2"),
-    tf.keras.layers.Dropout(0.5, name = "dropout6"),
+    # Dropout layer with rate 0.3 to prevent overfitting by randomly deactivating 30% of neurons during training
+    tf.keras.layers.Dropout(0.3, name = "dropout1"),
 
-    # Output layer with 3 units (one for each class) and softmax activation for multi-class classification
+    # ---------------------- Global Average Pooling: Dimensionality reduction ----------------------------------------------
+    # Global average pooling averages each 9x9 feature map into a single value.
+    # This is a more modern alrernative of flatten that reduces overfitting and improves generalization
+    tf.keras.layers.GlobalAveragePooling2D(name = "global_avg_pool"),
+
+    # ---------------------- Classification head: ----------------------------------------------------------------------
+    # Dense layer with 128 units to learn complex decision boundaries from the 256 global features
+    tf.keras.layers.Dense (128, activation = "relu", name = "dense1"),
+
+    # Dropout layer to further prevent overfitting in the classification head
+    tf.keras.layers.Dropout(0.3, name = "dropout2"),
+
+    # Output layer with 3 units (one pr class: paper, rock, scissors) and softmax activatio.
+    # Softmax converts raw scores into probability distribution summing to 1.0
     tf.keras.layers.Dense(3, activation = "softmax", name = "output")
 ], name = "Advanced_CNN")
 
@@ -714,7 +724,7 @@ print("\nCompiling the Advanced CNN model...")
 # We use the same techiques for compiling the advanced model as the baseline and intermediate models because they are all 
 # suitable for our multi-class classification task and provide a good starting point for training.
 model_3_advanced.compile(
-    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+    optimizer = tf.keras.optimizers.Adam(learning_rate = 0.0001),
     loss = "sparse_categorical_crossentropy",
     metrics = ["accuracy"]
 )
@@ -810,12 +820,50 @@ else:
 
 # Results:
 # Model 2 demonstates a greater performance across all metrics if we compare it with the resutls of model 1:
-# - Validation accuracy improved from 97% to 98%
-# - Training accuracy increased from 85% to 92%
-# - Validation loss decreased from 0.11 to 0.8 (meaning more confident predictions)
-# - Accuracy gap reduced from -12.7% to -5.7% (meaning better training stability)
+# - Higher validation accuracy 
+# - Significantly higher training accuracy 
+# - Lower validation loss 
+# - Accuracy gap reduced (meaning better training stability)
 
 # The addition of the third convolutional block with 128 filters and dropout regularization of 0.5, allowed the model to learn more complex features
 # while mantaining great generalization. The smaller accuracy gap indicates that model 2 handles data augmentation more efficiently while achieving 
 # higher performance on both training and validation sets
+
+# 3) TRAINING THE ADVANCED CNN MODEL --------------------------------------------------------------------------------------------------------------------
+print("\nTraining the advanced CNN model...")
+
+# Training configuration is the same as the baseline and advanced model to ensure a fair comparison between the two architectures.
+EPOCHS = 20
+
+# Training the model
+history_model_3 = model_3_advanced.fit(
+    train_data,                   # Training dataset
+    epochs = EPOCHS,              # 20 epochs
+    validation_data = val_data,   # validation dataset
+    verbose = 1                   # shows the progress
+)
+
+print("\nAdvanced CNN model training complete")
+
+# Summary of results
+final_train_loss_3 = history_model_3.history["loss"][-1]
+final_train_accuracy_3 = history_model_3.history["accuracy"][-1]
+final_val_loss_3 = history_model_3.history["val_loss"][-1]
+final_val_accuracy_3 = history_model_3.history["val_accuracy"][-1]
+
+print(f"Final Training Loss: {round(final_train_loss_3, 2)}")
+print(f"Final Training Accuracy: {round(final_train_accuracy_3, 2)}")
+print(f"Final Validation Loss: {round(final_val_loss_3, 2)}")
+print(f"Final Validation Accuracy: {round(final_val_accuracy_3, 2)}")
+
+# Checking for presence of overfitting
+accuracy_gap_3 = final_train_accuracy_3 - final_val_accuracy_3
+print(accuracy_gap_3)
+
+if accuracy_gap_3 > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
+    print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
+elif accuracy_gap_3 < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
+    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
+else:
+    print("No significant overfitting detected (gap < 5%).")
 
