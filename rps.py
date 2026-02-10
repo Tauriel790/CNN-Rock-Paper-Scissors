@@ -8,18 +8,7 @@ from PIL import Image
 import random, glob
 from PIL import Image
 from pathlib import Path
-
-
-# --------------------------------------------------------------------- LOADING THE DATA ----------------------------------------------------------------------------------
-# load the data into the working environment
-data = tf.keras.utils.image_dataset_from_directory(
-    "data",
-    labels = "inferred",
-    label_mode = "int",
-    seed = 50,
-    batch_size = 30,
-    shuffle = True
-)
+import random
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
 
@@ -350,66 +339,96 @@ print("No significant color bias detected between the classes")
 # ------------------------------------------------------------- TRAIN, VALIDATION AND TEST SETS SPLIT  ------------------------------------------------------------------------
 
 # First, it is important to split the data into train and test set before any processing to avoid data leakage. This ensures that the test set data remain unseen during
-# the training process and that no information from the test set influences the model training.
+# the training process and that no information from the test set influences the model training. Best practice: splitting at File Level before building any tf.data pipelines.
+# This guarantees:
+# - zero leakage
+# - Full reproducibility across sessions and environments
+# - Transparent, auditable splits (so we can inspect exactly which files are where)
 
-# calculate the splitting sizes of the train and test sets
-total_samples = sum (counts)
-train_size = int(0.70 * total_samples)
-val_size = int(0.15 * total_samples)
-test_size = int(0.15 * total_samples)
+# Collecting all the image paths and their labels from the directory
+all_images_paths = []
+all_labels = []
 
-print(f"\nTotal samples: {total_samples}")
-print(f"Train size: {train_size}")
-print(f"Validation size: {val_size}")
-print(f"Test size: {test_size}")
+for label_idx, cls in enumerate(classes):
+    cls_paths = [
+        str(p) for p in (directory / cls).iterdir()
+        if p.is_file() and p.suffix.lower() in img_exts
+    ]
+    all_images_paths.extend(cls_paths)
+    all_labels.extend([label_idx] * len(cls_paths))
 
-# Now we can split the data into train, validation and test sets:
-# 1) Load all the data with shuffle = True
-all_data = tf.keras.utils.image_dataset_from_directory(
-    directory,
-    labels = "inferred",
-    label_mode = "int",
-    class_names = classes,
-    batch_size = 30,
-    image_size = (150, 150), 
-    shuffle = True,
-    seed = 42
+# Shuffling at the file level with a fixed seed for full reproducibility
+combined = list(zip(all_images_paths, all_labels))
+random.seed(42)
+random.shuffle(combined)
+all_images_paths, all_labels = zip(*combined)
+all_images_paths = list(all_images_paths)
+all_labels = list(all_labels)
+
+# Computing the split indices (70% train / 15% validation / 15% test)
+total = len(all_images_paths)
+train_end = int(0.70 * total)
+val_end = int(0.85 * total)
+
+train_paths, train_labels = all_images_paths[:train_end], all_labels[:train_end]
+val_paths, val_labels = all_images_paths[train_end:val_end], all_labels[train_end:val_end]
+test_paths, test_labels = all_images_paths[val_end:], all_labels[val_end:]
+
+print(f"\nFile-level split:")
+print(f"Train: {len(train_paths)} images")
+print(f"Validation: {len(val_paths)} images")
+print(f"Test: {len(test_paths)} images")
+print(f"Total: {len(train_paths) + len(val_paths) + len(test_paths)} (should equal {total})")
+
+# Verifying now that there is zero overlap between the splits done
+train_set = set(train_paths)
+val_set = set(val_paths)
+test_set = set(test_paths)
+
+assert len (train_set & val_set) == 0, "Leakage: train and val share images!"
+assert len (train_set & test_set) == 0, "Leakage: train and test share images!"
+assert len (val_set & test_set) == 0, "Leakage: val and test share images!"
+print("Zero overlap confirmed between all splits.")
+
+# Then, we verify the class distribution across the splits
+print("Class distribution:")
+for split_name, split_labels in [("Train", train_labels), ("Val", val_labels), ("Test", test_labels)]:
+    vals, cnts = np.unique(split_labels, return_counts = True)
+    dist = {classes[v]: c for v, c in zip(vals, cnts)}
+    print(f"{split_name}: {dist}")
+
+# Now, tf.data pipelines are built from the file lists. Images are loaded and resized in this process
+
+def load_and_resize (path, label):
+    image = tf.io.read_file(path)
+    image = tf.image.decode_image(image, channels = 3, expand_animations = False)
+    image = tf.image.resize(image, [150, 150])
+    image.set_shape([150, 150, 3])
+    return image, label
+
+BATCH_SIZE = 30
+
+train_data = (
+    tf.data.Dataset.from_tensor_slices((train_paths, train_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
 )
 
-# Calculation of the number of batches
-total_batches = tf.data.experimental.cardinality(all_data).numpy()
-train_batches = int(0.70 * total_batches)
-val_batches = int(0.15 * total_batches)
+val_data = (
+    tf.data.Dataset.from_tensor_slices((val_paths, val_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+)
 
-print(f"\nBatches distribution:")
-print(f"Total batches: {total_batches}")
-print(f"Train batches: {train_batches}")
-print(f"Val batches: {val_batches}")
-print(f"Test batches: {total_batches - train_batches - val_batches}")
+test_data = (
+    tf.data.Dataset.from_tensor_slices((test_paths, test_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+)
 
-# split the data
-train_data = all_data.take(train_batches)
-remaining = all_data.skip(train_batches)
-val_data = remaining.take(val_batches)
-test_data = remaining.skip(val_batches)
-
-# Now we verify the split
-print(f"\nTrain: {tf.data.experimental.cardinality(train_data).numpy()}")
-print(f"Val: {tf.data.experimental.cardinality(val_data).numpy()}")
-print(f"\nTest: {tf.data.experimental.cardinality(test_data).numpy()}")
-
-# Than, we verify the class distribution
-def count_labels (ds, name):
-    ys = []
-    for _, y in ds:
-        ys.extend(y.numpy())
-    vals, cnts = np.unique(ys, return_counts = True)
-    print (f"{name}: {dict(zip(vals, cnts))}")
-
-print (f"\nClass distribution:")
-count_labels(train_data, "Train")
-count_labels(val_data, "Val")
-count_labels(test_data, "Test")
+print(f"Train batches: {tf.data.experimental.cardinality(train_data).numpy()}")
+print(f"Validation batches: {tf.data.experimental.cardinality(val_data).numpy()}")
+print(f"Test batches: {tf.data.experimental.cardinality(test_data).numpy()}")
 
 # ---------------------------------------------------------------------- PROCESSING OF THE DATA ------------------------------------------------------------------------------
 # Now that the data has been splitted into train, validation and test sets, we can proceed with the processing of the data. Since the dimensions of the images have already 
@@ -467,11 +486,7 @@ train_data = train_data.map(
 )
 
 # 3) Pipeline optimization: ------------------------------------------------------------------------------------------------------------------------------------------------
-# Adding shuffle buffer and prefetching for improved training performance
 AUTOTUNE = tf.data.AUTOTUNE
-
-# Adding shuffle buffer to training set for better batch mixing
-train_data = train_data.shuffle(buffer_size = 1000, seed = 42, reshuffle_each_iteration = True)
 
 # Adding prefetching to all datasets for improved performance
 train_data = train_data.prefetch(AUTOTUNE)
@@ -657,6 +672,7 @@ model_3_advanced = tf.keras.Sequential([
     # 256 filters to learn the most abstract representation of complete gestures
     tf.keras.layers.Conv2D(256, 3, padding = "same", use_bias = False, name = "conv4"),
     tf.keras.layers.BatchNormalization(name = "bn4"),
+    tf.keras.layers.Activation("relu", name = "relu4"),
     tf.keras.layers.MaxPooling2D(name = "maxpool4"),
 
     # Dropout layer with rate 0.3 to prevent overfitting by randomly deactivating 30% of neurons during training
@@ -832,7 +848,7 @@ else:
 # 3) TRAINING THE ADVANCED CNN MODEL --------------------------------------------------------------------------------------------------------------------
 print("\nTraining the advanced CNN model...")
 
-# Training configuration is the same as the baseline and advanced model to ensure a fair comparison between the two architectures.
+# Training configuration is the same as the baseline and intermidiate model to ensure a fair comparison between the two architectures.
 EPOCHS = 20
 
 # Training the model
