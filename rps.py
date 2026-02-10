@@ -746,8 +746,16 @@ model_3_advanced.compile(
 )
 
 # ------------------------------------------------------------ TRAINING THE 3 MODELS ----------------------------------------------------------------------
-
 # 1) TRAINING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
+# First we define callbacks to block the training proces if we see that there is not improvement between two callbacks
+callbacks_1 = [
+    tf.keras.callbacks.EarlyStopping(
+        monitor = "val_accuracy",
+        patience = 5,
+        restore_best_weights = True
+    )
+]
+
 print("\nTraining the Baseline CNN model...")
 
 # Training configuration (batch size was not specified because already defined during the loading phase, and the number of epochs is set to 20 which is a common 
@@ -760,7 +768,8 @@ history_model_1 = model_1_baseline.fit(
     train_data,                      # training the dataset
     epochs = EPOCHS,                 # number of epochs to train
     validation_data = val_data,      # validation dataset to evaluate the model's performance after each epoch
-    verbose = 1                      # shows the training progress and metrics for each epoch (1 = progress bar, 2 = one line per epoch, 0 = silent)
+    verbose = 1,                      # shows the training progress and metrics for each epoch (1 = progress bar, 2 = one line per epoch, 0 = silent)
+    callbacks = callbacks_1
 )
 
 print ("\nBaseline CNN model training completed.")
@@ -797,6 +806,14 @@ else:
 # and it indicates that the model is generalizing well to the validation data without overfitting to the augmented training data.
 
 # 2) TRAINING THE INTERMIDIATE CNN MODEL --------------------------------------------------------------------------------------
+callbacks_2 = [
+    tf.keras.callbacks.EarlyStopping(
+        monitor = "val_accuracy",
+        patience = 10,
+        restore_best_weights = True
+    )
+]
+
 print("\nTraining the Intermediate CNN model...")
 
 # Training configuration is the same as the baseline model to ensure a fair comparison between the two architectures.
@@ -807,7 +824,8 @@ history_model_2 = model_2_intermidiate.fit(
     train_data,                   # Training dataset
     epochs = EPOCHS,              # 20 epochs
     validation_data = val_data,   # validation dataset
-    verbose = 1                   # shows the progress
+    verbose = 1,                   # shows the progress
+    callbacks = callbacks_2
 )
 
 print("\nIntermidiate CNN model training complete")
@@ -846,17 +864,28 @@ else:
 # higher performance on both training and validation sets
 
 # 3) TRAINING THE ADVANCED CNN MODEL --------------------------------------------------------------------------------------------------------------------
+callbacks_3 = [
+    tf.keras.callbacks.EarlyStopping(
+        monitor = "val_accuracy",
+        patience = 10,
+        restore_best_weights = True
+    )
+]
+
 print("\nTraining the advanced CNN model...")
 
 # Training configuration is the same as the baseline and intermidiate model to ensure a fair comparison between the two architectures.
-EPOCHS = 20
+# In this case we increased the epochs to 50 instead of 20 because BatchNormalization requires more warmup time with lower learning rate (0.0001). The 
+# first 12 epochs are used for BatchNorm statistics stabilization, leaving almost 38 effective epochs for learning
+EPOCHS = 50
 
 # Training the model
 history_model_3 = model_3_advanced.fit(
     train_data,                   # Training dataset
-    epochs = EPOCHS,              # 20 epochs
+    epochs = EPOCHS,              # 50 epochs
     validation_data = val_data,   # validation dataset
-    verbose = 1                   # shows the progress
+    verbose = 1,                   # shows the progress
+    callbacks = callbacks_3
 )
 
 print("\nAdvanced CNN model training complete")
