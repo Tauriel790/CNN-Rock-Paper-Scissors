@@ -10,6 +10,7 @@ from PIL import Image
 from pathlib import Path
 import random
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 import itertools
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
@@ -1386,4 +1387,116 @@ if improvement > 0:
 else:
     print(f"\nOriginal Hyperparameters were already near optimal (difference: {improvement:.2f} %)")
 
+# ------------------------------------------------------------- COMPARING ALL THE 3 MODELS -----------------------------------------------------------------------------------------
+print("\nCOMPATING ALL 3 MODELS ON VALIDATION SET")
 
+# Evaluate all 3 original models on validation set
+models_comparison = {
+    "Model_1 (Baseline)": model_1_baseline,
+    "Model_2 (Intermidiate)": model_2_intermidiate,
+    "Model_3 (Advanced)": model_3_advanced
+}
+
+for model_name, model in models_comparison.items():
+    print(f"\n {model_name}")
+
+    # Get predictions on validation set
+    val_predictions_probs = model.predict(val_data, verbose = 0)
+    val_predictions = np.argmax(val_predictions_probs, axis = 1)
+
+    # Calculation of the metrics
+    val_accuracy = accuracy_score(val_labels, val_predictions)
+    val_precision = precision_score(val_labels, val_predictions, average = "weighted")
+    val_recall = recall_score(val_labels, val_predictions, average = "weighted")
+    val_f1 = f1_score(val_labels, val_predictions, average = "weighted")
+
+    print(f"Accuracy: {val_accuracy:.4f}")
+    print(f"Precision: {val_precision:.4f}")
+    print(f"Recall: {val_recall:.4f}")
+    print(f"F1-score: {val_f1:.4f}")
+
+# ----------------------------------------------------------------- FINAL TEST SET EVALUATION -----------------------------------------------------------------------------------------------------
+# Since both model 2 tuned and model 3 (wthout tuning) perform really well, e will do the test set evaluation on both of them to let the results decide which one its the best
+
+# 1) MODEL 3 (BEST VALIDATION) --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Now first, we evaluate the model 3 on the test set
+test_pred_model_3 = np.argmax(model_3_advanced.predict(test_data, verbose = 0), axis = 1)
+
+accuracy_3 = accuracy_score(test_labels, test_pred_model_3)
+precision_3 = precision_score(test_labels, test_pred_model_3, average = 'weighted')
+recall_3 = recall_score(test_labels, test_pred_model_3, average = 'weighted')
+f1_score_3 = f1_score(test_labels, test_pred_model_3, average = 'weighted')
+
+print("\nTest set metrics:")
+print(f"Accuracy: {accuracy_3:.4f}")
+print(f"Precision: {precision_3:.4f}")
+print(f"Recall: {recall_3:.4f}")
+print(f"F1-score: {f1_score_3:.4f}")
+
+# 2) MODEL 2 (WITHOUT TUNING) ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Use already trained model 2
+test_pred_model_2 = np.argmax(model_2_intermidiate.predict(test_data, verbose = 0), axis = 1)
+
+accuracy_2 = accuracy_score(test_labels, test_pred_model_2)
+precision_2 = precision_score(test_labels, test_pred_model_2, average = 'weighted')
+recall_2 = recall_score(test_labels, test_pred_model_2, average = 'weighted')
+f1_score_2 = f1_score(test_labels, test_pred_model_2, average = 'weighted')
+
+print("\nTest set metrics:")
+print(f"Accuracy: {accuracy_2:.4f}")
+print(f"Precision: {precision_2:.4f}")
+print(f"Recall: {recall_2:.4f}")
+print(f"F1-score: {f1_score_2:.4f}")
+
+# So it has a worse performance on the test set compared to the third model 
+
+# 3) MODEL 2 (TUNED) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+print("Model 2 (intermidiate) - Hyperparameter Tuned & Retrained on Train + Val")
+print("\nBest hyperparameters from grid search:")
+print(f" - Learning rate: {best_config['learning_rate']}")
+print(f" - Dropout rate: {best_config['dropout_rate']}")
+print(f" - Conv filters: {best_config['conv_filters']}")
+print(f" - Dense Units: {best_config['dense_units']}")
+
+# Building and training the model on combined data
+final_model = build_tuned_model_2(
+    learning_rate = best_config['learning_rate'],
+    dropout_rate = best_config['dropout_rate'],
+    conv_filters = best_config['conv_filters'],
+    dense_units = best_config['dense_units']
+)
+
+print("\nTraining on combined train + validation data")
+combined_train_data = train_data.concatenate(val_data)
+
+final_history = final_model.fit(
+    combined_train_data,
+    epochs = 20,
+    verbose = 1,
+    callbacks = [tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 5, restore_best_weights = True)] 
+)
+
+test_pred_model_2_tuned = np.argmax(final_model.predict(test_data, verbose = 0), axis = 1)
+
+accuracy_2_tuned = accuracy_score(test_labels, test_pred_model_2_tuned)
+precision_2_tuned = precision_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
+recall_2_tuned = recall_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
+f1_score_2_tuned = f1_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
+
+print(f"\nAccuracy: {accuracy_2_tuned:.4f}")
+print(f"Precision: {precision_2_tuned:.4f}")
+print(f"Recall: {recall_2_tuned:.4f}")
+print(f"F1-score: {f1_score_2_tuned:.4f}")
+
+# ------------------------------------------------------------ COMPARISON OF RESULTS ---------------------------------------------------------------------------------------------------------------------
+# Now we see the results and make a comparison of the performances on the test sets
+
+print("\nTEST SET COMPARISON:")
+print(f"Model 3 (Advanced, untuned): {accuracy_3:.4f}")
+print(f"Model 2 (Intermidiate, original): {accuracy_2:.4f}")
+print(f"Model 2 (Intermidiate, Tuned + retrained): {accuracy_2_tuned:.4f}")
+
+# So, we demonstrated that a well tuned simpler model can outperform a complex model with default hyperparameters and in our case we can see that the tuning worked really well because it improved the 
+# the accuracy making model tuned 2 also better then model 3 untuned
+
+# ------------------------------------------------------------ TRAINING CURVES VISUALIZATION -------------------------------------------------------------------------------------------------------------
