@@ -1592,3 +1592,110 @@ plt.tight_layout()
 plt.show(block = False); plt.pause(3)
 
 # ------------------------------------------------------------- MISCLASSIFIED EXAMPLES ANALYSIS -----------------------------------------------------------------------------------------------------------
+# Using the final tuned model 2 (best performing model)
+# We already have test_predictions and test_labels from earlier, but we convert the test_labels to arrays (becuase they are currently a list)
+test_labels = np.array(test_labels)
+
+# Now we find misclassified examples (using the tuned model 2 predictions)
+misclassified_indices = np.where(test_pred_model_2_tuned != test_labels)[0]
+correctly_classified_indices = np.where(test_pred_model_2_tuned == test_labels)[0]
+
+print(f"\nTotal test samples: {len(test_labels)}")
+print(f"Correctly classified: {len(correctly_classified_indices)} ({len(correctly_classified_indices)/len(test_labels)*100:.2f})")
+print(f"Misclassified: {len(misclassified_indices)} ({len(misclassified_indices)/len(test_labels) * 100:.2f})")
+
+# Analysis of the misclassification
+# Create confusion analysis
+misclassified_matrix = {}
+for true_label, pred_label in zip (test_labels[misclassified_indices], test_pred_model_2_tuned[misclassified_indices]):
+    key = f"{classes[true_label]} -- {classes[pred_label]}"
+    misclassified_matrix[key] = misclassified_matrix.get(key, 0) + 1
+
+print("\nMisclassification breakdown:")
+for pattern, count in sorted(misclassified_matrix.items(), key = lambda x: x[1], reverse = True):
+    print(f"{pattern}: {count} cases")
+
+# ------------------------------------------------------------- VISUALIZATION OF THE MISCLASSIFIED EXAMPLES --------------------------------------------------------------------------------------------------
+# Now we get the misclassified examples
+num_examples = len(misclassified_indices)
+
+if num_examples > 0:
+    # Use all misclassified examples (show up to 12, randomly sampl)
+    sample_size = min(12, num_examples)
+
+    if num_examples > 12:
+        sample_indices = np.random.choice(misclassified_indices, size = 12, replace = False)
+    else:
+        sample_indices = misclassified_indices
+
+    # Getting the images from the test set
+    test_images_list = []
+    for images_batch, _ in test_data:
+        test_images_list.append(images_batch.numpy())
+    test_images = np.concatenate(test_images_list, axis = 0)
+
+    # Getting the prediction probabilities (needed to predict again to get probabilities)
+    test_pred_probs = final_model.predict(test_data, verbose = 0)
+
+    # Creatin the figure
+    fig, axes = plt.subplots(3, 4, figsize = (18, 14))
+    axes = axes.flatten()
+
+    for idx, sample_idx in enumerate(sample_indices):
+        # Get the image
+        img = test_images[sample_idx]
+
+        # Get true and predicted labels
+        true_label = classes[test_labels[sample_idx]]
+        pred_label = classes[test_pred_model_2_tuned[sample_idx]]
+
+        # Get prediction confidence
+        confidence = test_pred_probs[sample_idx][test_pred_model_2_tuned[sample_idx]] * 100
+
+        # Display image
+        axes[idx].imshow(img)
+        axes[idx].axis("off")
+        axes[idx].set_title(
+            f"True: {true_label}\nPredicted: {pred_label}\nConfidence: {confidence:.1f}%",
+            fontsize = 12,
+            color = "red",
+            fontweight = "bold"
+        )
+
+    # Hiding unused subplots
+    for idx in range(sample_size, 12):
+        axes[idx].axis("off")
+
+    plt.suptitle("Misclassification Examples for model 2 tuned", fontsize = 16, fontweight = "bold")
+    plt.tight_layout()
+    plt.show(block = False); plt.pause(3)
+
+    print(f"\nDisplayed {sample_size} of {num_examples} misclassified examples")
+else:
+    print("\nNo misclassified examples found! Perfect classification.")
+
+# Summary of the analysis --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+print("\nMISCLASSIFICATION ANALYSIS SUMMARY:")
+
+if len(misclassified_indices) > 0:
+    # Finding which class its most confused
+    true_labels_misc = test_labels[misclassified_indices]
+    pred_labels_misc = test_pred_model_2_tuned[misclassified_indices]
+
+    # Counting errors per class
+    for class_idx, class_name in enumerate(classes):
+        num_errors = np.sum(true_labels_misc == class_idx)
+        total_in_class = np.sum(test_labels == class_idx)
+        error_rate = (num_errors / total_in_class * 100) if total_in_class > 0 else 0
+        print(f"{class_name}: {num_errors}/{total_in_class} misclassified ({error_rate:.2f}% error rate)")
+
+    # Analysis of the confidence of misclassification
+    test_pred_probs = final_model.predict(test_data, verbose = 0)
+
+    misc_confidences = [test_pred_probs[idx][test_pred_model_2_tuned[idx]] for idx in misclassified_indices]
+    avg_misc_confidence = np.mean(misc_confidences) * 100
+
+    correct_confidences = [test_pred_probs[idx][test_pred_model_2_tuned[idx]] for idx in correctly_classified_indices]
+    avg_correct_confidence = np.mean(correct_confidences) * 100
+
+    print()
