@@ -1500,3 +1500,95 @@ print(f"Model 2 (Intermidiate, Tuned + retrained): {accuracy_2_tuned:.4f}")
 # the accuracy making model tuned 2 also better then model 3 untuned
 
 # ------------------------------------------------------------ TRAINING CURVES VISUALIZATION -------------------------------------------------------------------------------------------------------------
+# Creating the figure with subplot that will contain the loss and accuracy curves of model 1 and 2
+plt.close("all")
+fig, axes = plt.subplots(2, 2, figsize = (16, 12))
+
+# 1) MODEL 1 (BASELINE) ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Loss curve
+axes[0, 0].plot(history_model_1.history["loss"], label = "Training loss", linewidth = 2, color = 'blue')
+axes[0, 0].plot(history_model_1.history["val_loss"], label = "Validation loss", linewidth = 2, color = 'orange')
+axes[0, 0].set_title("Model 1 (Baseline) - Loss curve", fontsize = 14, fontweight = "bold")
+axes[0, 0].set_xlabel("Epoch", fontsize = 12)
+axes[0, 0].set_ylabel("Loss", fontsize = 12)
+axes[0, 0].legend(fontsize = 11)
+axes[0, 0].grid(True, alpha = 0.3)
+
+# Accuracy curve
+axes[0, 1].plot(history_model_1.history["accuracy"], label = "Training accuracy", linewidth = 2, color = "blue")
+axes[0, 1].plot(history_model_1.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "orange")
+axes[0, 1].set_title("Model 1 (Baseline) - Accuracy curve", fontsize = 14, fontweight = "bold")
+axes[0, 1].set_xlabel("Epoch", fontsize = 12)
+axes[0, 1].set_ylabel("Accuracy", fontize = 12)
+axes[0, 1].legend(fontsize = 11)
+axes[0, 1].grid(True, alpha = 0.3)
+
+# 2) MODEL 2 (INTERMIDIATE) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Loss curve
+axes[1, 0].plot(history_model_2.history["loss"], label = "Training loss", linewidth = 2, color = 'green')
+axes[1, 0].plot(history_model_2.history["val_loss"], label = "Validation loss", linewidth = 2, color = 'purple')
+axes[1, 0].set_title("Model 2 (Intermidiate) - Loss curve", fontsize = 14, fontweight = "bold")
+axes[1, 0].set_xlabel("Epoch", fontsize = 12)
+axes[1, 0].set_ylabel("Loss", fontsize = 12)
+axes[1, 0].legend(fontsize = 11)
+axes[1, 0].grid(True, alpha = 0.3)
+
+# Accuracy curve
+axes[1, 1].plot(history_model_2.history["accuracy"], label = "Training accuracy", linewidth = 2, color = "green")
+axes[1, 1].plot(history_model_2.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "yellow")
+axes[1, 1].set_title("Model 2 (Intermidiate) - Accuracy curve", fontsize = 14, fontweight = "bold")
+axes[1, 1].set_xlabel("Epoch", fontsize = 12)
+axes[1, 1].set_ylabel("Accuracy", fontize = 12)
+axes[1, 1].legend(fontsize = 11)
+axes[1, 1].grid(True, alpha = 0.3)
+
+plt.suptitle("Training Curves Comparison - Models 1 & 2", fontsize = 16, fontweight = "bold", y = 1.00)
+plt.tight_layout()
+plt.show(block = False); plt.pause(3)
+
+# 3) MODEL 3 (ADVANCED) ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+plt.close("all")
+
+# Creating the figure with subplot that will contain the loss and accuracy curves of model 3 and 2 with tuning
+fig, axes = plt.subplots(2, 2, figsize = (16, 12))
+
+# Loss curve
+axes[0, 0].plot(history_model_3.history["loss"], label = "Training loss", linewidth = 2, color = 'pink')
+axes[0, 0].plot(history_model_3.history["val_loss"], label = "Validation loss", linewidth = 2, color = 'red')
+axes[0, 0].set_title("Model 3 (Advanced) - Loss curve", fontsize = 14, fontweight = "bold")
+axes[0, 0].set_xlabel("Epoch", fontsize = 12)
+axes[0, 0].set_ylabel("Loss", fontsize = 12)
+axes[0, 0].legend(fontsize = 11)
+axes[0, 0].grid(True, alpha = 0.3)
+
+# Accuracy curve
+axes[0, 1].plot(history_model_3.history["accuracy"], label = "Training accuracy", linewidth = 2, color = "pink")
+axes[0, 1].plot(history_model_3.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "red")
+axes[0, 1].set_title("Model 3 (Advanced) - Accuracy curve", fontsize = 14, fontweight = "bold")
+axes[0, 1].set_xlabel("Epoch", fontsize = 12)
+axes[0, 1].set_ylabel("Accuracy", fontsize = 12)
+axes[0, 1].legend(fontsize = 11)
+axes[0, 1].grid(True, alpha = 0.3)
+
+# 4) MODEL 2 (WITH TUNING)
+# Loss curve
+axes[1, 0].plot(final_history.history["loss"], label = "Training loss (Training + Val combined)", linewidth = 2, color = 'brown')
+axes[1, 0].set_title("Model 2 (Tuned) - Loss curve", fontsize = 14, fontweight = "bold")
+axes[1, 0].set_xlabel("Epoch", fontsize = 12)
+axes[1, 0].set_ylabel("Loss", fontsize = 12)
+axes[1, 0].legend(fontsize = 11)
+axes[1, 0].grid(True, alpha = 0.3)
+
+# Accuracy curve
+axes[1, 1].plot(final_history.history["accuracy"], label = "Training accuracy (Training + Val combined)", linewidth = 2, color = "brown")
+axes[1, 1].set_title("Model 2 (Tuned) - Accuracy curve", fontsize = 14, fontweight = "bold")
+axes[1, 1].set_xlabel("Epoch", fontsize = 12)
+axes[1, 1].set_ylabel("Accuracy", fontsize = 12)
+axes[1, 1].legend(fontsize = 11)
+axes[1, 1].grid(True, alpha = 0.3)
+
+plt.suptitle("Training Curves for model 3 and tuned model 2 (train + val data)", fontsize = 16, fontweight = "bold")
+plt.tight_layout()
+plt.show(block = False); plt.pause(3)
+
+# ------------------------------------------------------------- MISCLASSIFIED EXAMPLES ANALYSIS -----------------------------------------------------------------------------------------------------------
