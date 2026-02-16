@@ -9,6 +9,8 @@ import random, glob
 from PIL import Image
 from pathlib import Path
 import random
+from sklearn.model_selection import StratifiedKFold
+import itertools
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
 
@@ -911,4 +913,477 @@ elif accuracy_gap_3 < 0.05:   # 5-10% gap is generally acceptable, but less than
     print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
 else:
     print("No significant overfitting detected (gap < 5%).")
+
+# ----------------------------------------------------------- CROSS VALIDATION OF ALL THE MODELS --------------------------------------------------------------------------------------------
+# Cross validation is performed on all 3 models to obtain a more robust and unbiaed estimate of their generalization performance. This implementation uses StratifiedKFold to ensure balanced 
+# class distribution across all folds, and applies the same data augmentation pipeline used in main training for consistency.
+
+# Key design decisions:
+# - StratifiedKFold instead of KFold: Guarantees proportional class representation in each fold 
+# - Data augmentation applied: Cross validation now reflects the actual training setup (augmented data)
+# - Train and validation sets are merged for CV: Uses th full non-test pool (almost 85% of data) for more reliable estimates
+# - Test set untouched: Never used during Cross Validation, reserved for final evaluation only
+
+# For cross validation 10 epochs will be used instead of the 20/50 used before. Using 10 epoches keeps runtime practical. The goal here is robust comparative evaluation, not peak accuracy - 
+# that was already achieved in the full training runs above. But for model_3 we will still use at least 30 epochs
+
+# Extracting train + validation data into numpy arrays --------------------------------------------------------------------------------------------------------------------------------------
+X_cross_val, Y_cross_val = [], []
+
+# Building fresh dataset from the file paths to avoid any pipeline state issues 
+train_data_cv = (
+    tf.data.Dataset.from_tensor_slices((train_paths, train_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+    .map(lambda x, y: (normalization_layer(x), y))
+)
+
+val_data_cv = (
+    tf.data.Dataset.from_tensor_slices((val_paths, val_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+    .map(lambda x, y: (normalization_layer(x), y))
+)
+
+for images, labels in train_data_cv:
+    X_cross_val.append(images.numpy())
+    Y_cross_val.append(labels.numpy())
+
+for images, labels in val_data_cv:
+    X_cross_val.append(images.numpy())
+    Y_cross_val.append(labels.numpy())
+
+X_cross_val = np.concatenate(X_cross_val, axis = 0)
+Y_cross_val = np.concatenate(Y_cross_val, axis = 0)
+
+print(f"Cross Validation pool: {X_cross_val.shape[0]} samples")
+print(f"X shape: {X_cross_val.shape}, Y shape: {Y_cross_val.shape}")
+
+# Defining model factory functions -----------------------------------------------------------------------------------------------------------------------------------------------------------
+# Each factory recreates the model from scratch for every fold to ensure complete independence. This prevents weight leakage across folds, which would produce optimitically biased results.
+
+def build_modeL_1():
+    """Baseline CNN: 2 convolutional blocks, no dropout."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (150, 150, 3)),
+        tf.keras.layers.Conv2D(32, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(64, activation = "relu"),
+        tf.keras.layers.Dense(3, activation = "softmax"),
+    ], name = "Baseline_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+def build_modeL_2():
+    """Intermediate CNN: 3 convolutional blocks + dropout."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (150, 150, 3)),
+        tf.keras.layers.Conv2D(32, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(128, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(128, activation = "relu"),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(3, activation = "softmax"),
+    ], name = "Intermediate_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+def build_modeL_3():
+    """Intermediate CNN: 3 convolutional blocks + dropout."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (150, 150, 3)),
+        tf.keras.layers.Conv2D(32, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(64, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(128, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(256, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.GlobalAveragePooling2D(),
+        tf.keras.layers.Dense(128, activation = "relu"),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Dense(3, activation = "softmax"),
+    ], name = "Advanced_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.0001),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+# 5-fold Cross Validation loop ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+K_FOLDS = 5
+
+# Different CV epochs for each model
+CV_EPOCHS_MODEL_1 = 10
+CV_EPOCHS_MODEL_2 = 10
+CV_EPOCHS_MODEL_3 = 30
+
+kf = StratifiedKFold(n_splits = K_FOLDS, shuffle = True, random_state = 42)
+
+cv_results = {
+    "model_1": {"accuracy": [], "loss": []},
+    "model_2": {"accuracy": [], "loss": []},
+    "model_3": {"accuracy": [], "loss": []},
+}
+
+model_builders = {
+    "model_1": build_modeL_1,
+    "model_2": build_modeL_2,
+    "model_3": build_modeL_3,
+}
+
+# Map each model to its specific CV epochs
+cv_epochs_map = {
+    "model_1": CV_EPOCHS_MODEL_1,
+    "model_2": CV_EPOCHS_MODEL_2,
+    "model_3": CV_EPOCHS_MODEL_3
+}
+
+for model_key, builder_fn in model_builders.items():
+    cv_epochs = cv_epochs_map[model_key]
+    print(f"Cross Validation: {model_key.upper().replace('_', '')} ({cv_epochs} epochs per fold)")
+
+    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_cross_val, Y_cross_val), start = 1):
+        print(f"\nFold {fold_idx}/{K_FOLDS}:")
+
+        X_fold_train, X_fold_val = X_cross_val[train_idx], X_cross_val[val_idx]
+        Y_fold_train, Y_fold_val = Y_cross_val[train_idx], Y_cross_val[val_idx]
+
+        # Fresh model for every fold which prevents any weight leakage between folds
+        fold_model = builder_fn()
+
+        # Creating tf.data datasets from numpy arrays to apply augmentation
+        # This makes CV consistent with the actual training pipeline
+        fold_train_ds = (
+            tf.data.Dataset.from_tensor_slices((X_fold_train, Y_fold_train))
+            .batch(BATCH_SIZE)
+            .map(lambda x, y: (data_augmentation(x, training = True), y), num_parallel_calls = tf.data.AUTOTUNE)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+
+        fold_val_ds = (
+            tf.data.Dataset.from_tensor_slices ((X_fold_val, Y_fold_val))
+            .batch(BATCH_SIZE)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+
+        fold_model.fit(
+            fold_train_ds,
+            epochs = cv_epochs,
+            validation_data = fold_val_ds,
+            verbose = 0
+        )
+
+        fold_loss, fold_accuracy = fold_model.evaluate(fold_val_ds, verbose = 0)
+
+        cv_results[model_key]["accuracy"].append(fold_accuracy)
+        cv_results[model_key]["loss"].append(fold_loss)
+
+        print(f"Fold {fold_idx} Accuracy: {fold_accuracy} | Loss: {fold_loss}")
+
+        del fold_model
+    # Free GPU/CPU memory after each fold to avoidc out of memory errors across 15 training runs    
+    tf.keras.backend.clear_session()
+
+# Cross validation results summary ----------------------------------------------------------------------------------------------------------------------------------------------------------
+print("\nCROSS VALIDATION RESULTS SUMMARY:\n")
+cv_summary = {}
+for model_key in ["model_1", "model_2", "model_3"]:
+    accs = cv_results[model_key]["accuracy"]
+    losses = cv_results[model_key]["loss"]
+    mean_acc =np.mean(accs)
+    std_acc = np.std(accs)
+    mean_loss = np.mean(losses)
+    std_loss = np.std(losses)
+
+    cv_summary[model_key] = {
+        "mean_accuracy": mean_acc,
+        "std_accuracy": std_acc,
+        "mean_loss": mean_loss,
+        "std_loss": std_loss,
+        "all_fold_accuracies": accs
+    }
+
+    print(f"\n{model_key.upper().replace('_', '')}:")
+    print(f"Mean CV Accuracy: {mean_acc:.4f}")
+    print(f"Mean CV loss: {mean_loss:.4f}")
+    print(f"Per-Fold Scores: {[round(a, 4) for a in accs]}")
+    print(f"Stability: {'Stable' if std_acc < 0.03 else 'Some variance across folds'}")
+
+# Visualization of cross-validation results -------------------------------------------------------------------------------------------------------------------------------------------------
+plt.close("all")
+fig, axes = plt.subplots(1, 2, figsize = (14, 6))
+
+model_labels = ["Model 1\n(Baseline)", "Model_2\n(Intermidiate)", "Model_3\n(Advanced)"]
+colors = ["yellow", "green", "blue"]
+fold_x = np.arange(1, K_FOLDS + 1)
+
+# Plot 1: Per-fold accuracy line chart
+for model_key, label, color in zip (["model_1", "model_2", "model_3"], model_labels, colors):
+    axes[0].plot(fold_x, cv_results[model_key]["accuracy"],
+                 marker = "o", label = label, color = color, linewidth = 2, markersize = 6)
+
+axes[0].set_title ("Per-Fold Validation Accuracy", fontsize = 13, fontweight = "bold")
+axes[0].set_xlabel("Fold")
+axes[0].set_ylabel("Accuracy")
+axes[0].set_xticks(fold_x)
+axes[0].legend()
+axes[0].grid(True, alpha = 0.3)
+axes[0].set_ylim([0, 1.05])
+
+# Plot 2: Mean accuracy bar chart with standard deviation error bars
+mean_accs = [cv_summary[k]["mean_accuracy"] for k in ["model_1", "model_2", "model_3"]]
+std_accs = [cv_summary[k]["std_accuracy"] for k in ["model_1", "model_2", "model_3"]]
+
+bars = axes[1].bar(model_labels, mean_accs, color = colors, alpha = 0.8,
+                   yerr = std_accs, capsize = 6, edgecolor = "black", linewidth = 1.2)
+
+for bar, mean, std in zip (bars, mean_accs, std_accs):
+    axes[1].text(bar.get_x() + bar.get_width() / 2,
+                 bar.get_height() + std + 0.01,
+                 f"{mean.round(2)} +- {std.round(2)}",
+                 ha = "center", va = "bottom", fontsize = 9, fontweight = "bold")
+    
+axes[1].set_title("Mean CV Accuracy +- Std Deviation", fontsize = 9, fontweight = "bold")
+axes[1].set_ylabel("Mean Accuracy")
+axes[1].set_ylim([0, 1.15])
+axes[1].grid(True, alpha = 0.3, axis = "y")
+
+plt.suptitle("5-Fold Cross-Validation Comparison: All 3 CNN models",
+             fontsize = 14, fontweight = "bold")
+plt.tight_layout()
+plt.show(block = False); plt.pause(3)
+
+print("\nCross Validation complete!")
+
+# -------------------------------------------------------- HYPERPARAMETER TUNING FOR MODEL 2 ------------------------------------------------------------------------------
+# Hyperparameter tuning is performed on Model 2 (Intermidiate CNN) to find the optimal combination of hyperparameters that maximize validation accuracy. We'll tune the
+# following hyperparameters:
+# - 1) Learning rate: Controls the step size during gradient descent
+# - 2) Dropout rate: Controls regularization strength to prevent overfitting
+# - 3) Number of filters in Conv layers: Controls model capacity
+# - 4) Dense layer size: Controls the complexity of the classification head
+
+# Strategy: Grid search with 3-fold cross-validation on a subset of hyperparameter combinations. We use a smaller k = 3 for Cross Validation here (instead of 5) to keep 
+# runtime practical during grid search.
+
+print("\nHYPERPARAMETER TUNING MODEL 2 INTERMIDIATE")
+
+# Defining the hyperparameter grid to search
+# We keep the grid manageable (2-3 values per parameter) to avoid combinatorial explosion
+hyperparameter_grid = {
+    "learning_rate": [0.0001, 0.001, 0.01],           # low, medium, high
+    "dropout_rate": [0.3, 0.5, 0.7],                  # low, medium, high
+    "conv_filters": [(32, 64, 128), (64, 128, 256)],  # original vs double capacity
+    "dense_units": [64, 128, 256]
+}
+
+# Calculation of the total combinations
+total_combinations = (
+    len(hyperparameter_grid["learning_rate"]) *
+    len(hyperparameter_grid["dropout_rate"]) *
+    len(hyperparameter_grid["conv_filters"]) *
+    len(hyperparameter_grid["dense_units"])
+)
+
+print (f"Hyperparameter search space:")
+print(f" - Learning rates: {hyperparameter_grid['learning_rate']}")
+print(f" - Dropout rates: {hyperparameter_grid['dropout_rate']}")
+print(f" - Conv filter configurations: {hyperparameter_grid['conv_filters']}")
+print(f" - Dense layer sizes: {hyperparameter_grid['dense_units']}")
+print (f"\nTotal combinations to test: {total_combinations}")
+print(f"Each combination uses 3-fold CV with 10 epochs per fold")
+print(f"Estimated runtime: almost {total_combinations * 3 * 10 * 4 // 60} minutes\n")
+
+# Model builder function with configurable hyperprameters
+def build_tuned_model_2 (learning_rate, dropout_rate, conv_filters, dense_units):
+    """Build Model 2 with specified hyperparameters.
+    
+    Args:
+        learning_rate: Optimizer learning rate
+        dropout_rate: Dropout probability (0-1)
+        conv_filters: Tuple of (filters_layer1, filters_layer2, filters_layer3)
+        dense_units: Number of units in the dense layer
+    """
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (150, 150, 3)),
+
+        # Convolutional block 1
+        tf.keras.layers.Conv2D(conv_filters[0], (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+
+        # Convolutional block 2
+        tf.keras.layers.Conv2D(conv_filters[1], (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+
+        # Convolutional block 3
+        tf.keras.layers.Conv2D(conv_filters[2], (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+
+        # Classification head
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(dense_units, activation = 'relu'),
+        tf.keras.layers.Dropout(dropout_rate),
+        tf.keras.layers.Dense(3, activation = 'softmax')
+    ], name = 'Tuned_intermidiate_CNN')
+
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate),
+        loss = 'sparse_categorical_crossentropy',
+        metrics = ['accuracy']
+    )
+
+    return model
+
+# Grid search with 3-fold cross validation
+K_FOLDS_TUNING = 3
+TUNING_EPOCHS = 10
+
+kf_tuning = StratifiedKFold(n_splits = K_FOLDS_TUNING, shuffle = True, random_state = 42)
+
+# Storing the results for all hyperparameter combinations
+tuning_results = []
+
+# Generate all combinations
+all_combinations = list(itertools.product(
+    hyperparameter_grid['learning_rate'],
+    hyperparameter_grid['dropout_rate'],
+    hyperparameter_grid['conv_filters'],
+    hyperparameter_grid['dense_units']
+))
+
+for idx, (lr, dropout, filters, dense) in enumerate(all_combinations, start = 1):
+    print(f"[{idx}/{total_combinations}] Testing: LR = {lr}, Dropout = {dropout}, Filters = {filters}, Dense = {dense}")
+
+    fold_accuracies = []
+    fold_losses = []
+
+    # 3-fold cross validation for this hyperparameters combination
+    for fold_idx, (train_idx, val_idx) in enumerate(kf_tuning.split(X_cross_val, Y_cross_val), start = 1):
+        X_fold_train, X_fold_val = X_cross_val[train_idx], X_cross_val[val_idx]
+        Y_fold_train, Y_fold_val = Y_cross_val[train_idx], Y_cross_val[val_idx]
+
+        # Building the model with the current hyperparameters
+        tuned_model = build_tuned_model_2(lr, dropout, filters, dense)
+
+        # Create datasets with augmentation
+        fold_train_ds = (
+            tf.data.Dataset.from_tensor_slices((X_fold_train, Y_fold_train))
+            .batch(BATCH_SIZE)
+            .map(lambda x, y: (data_augmentation(x, training = True), y), num_parallel_calls = tf.data.AUTOTUNE)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+
+        fold_val_ds = (
+            tf.data.Dataset.from_tensor_slices((X_fold_val, Y_fold_val))
+            .batch(BATCH_SIZE)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+
+        # Train
+        tuned_model.fit(
+            fold_train_ds,
+            epochs = TUNING_EPOCHS,
+            validation_data = fold_val_ds,
+            verbose = 0
+        )
+
+        # Evaluate
+        fold_loss, fold_accuracy = tuned_model.evaluate(fold_val_ds, verbose = 0)
+        fold_accuracies.append(fold_accuracy)
+        fold_losses.append(fold_loss)
+
+        del tuned_model
+
+    # Calculate mean performance across folds
+    mean_accuracy = np.mean(fold_accuracies)
+    std_accuracy = np.std(fold_accuracies)
+    mean_loss = np.mean(fold_losses)
+
+    # Storing the results 
+    tuning_results.append({
+        'learning_rate': lr,
+        'dropout_rate': dropout,
+        'conv_filters': filters,
+        'dense_units': dense,
+        'mean_accuracy': mean_accuracy,
+        'std_accuracy': std_accuracy,
+        'mean_loss': mean_loss,
+        'fold_accuracies': fold_accuracies
+    })
+
+    print(f"Mean CV Accuracy: {mean_accuracy:.4f} +- {std_accuracy:.4f}")
+
+    # Clear session after each hyperparameter combination
+    tf.keras.backend.clear_session()
+
+# Analysis of the results
+print("\nHYPERPARAMETER TUNING RESULTS:")
+
+# We sort the results by mean accuracy (descending order)
+tuning_results_sorted = sorted(tuning_results, key = lambda x: x['mean_accuracy'], reverse = True)
+
+# Top 5 configurations
+print("\nTop 5 Hyperparameter Configurations:")
+for rank, result in enumerate(tuning_results_sorted[:5], start = 1):
+    print(f"{rank}. Mean Accuracy: {result['mean_accuracy']:.4f} +- {result['std_accuracy']:.4f}")
+    print(f" - Learning_rate: {result['learning_rate']}")
+    print(f" - Dropout_rate: {result['dropout_rate']}")
+    print(f" - Conv Filters: {result['conv_filters']}")
+    print(f" - Dense Units: {result['dense_units']}")
+    print(f" - Mean Loss: {result['mean_loss']:.4f}")
+    print(f" - Per-Fold Accuracies: {[round(a, 4) for a in result['fold_accuracies']]}\n")
+
+# Best configuration
+best_config = tuning_results_sorted[0]
+print("\nBEST HYPERPARAMETER CONFIGURATION:")
+print(f"Learning_rate: {best_config['learning_rate']}")
+print(f" - Dropout_rate: {best_config['dropout_rate']}")
+print(f" - Conv Filters: {best_config['conv_filters']}")
+print(f" - Dense Units: {best_config['dense_units']}")
+print(f" - Mean CV accuracy: {best_config['mean_accuracy']:.4f} +- {best_config['std_accuracy']:.4f}")
+print(f" - Mean CV Loss: {best_config['mean_loss']:.4f}")
+print(f" - Per-Fold Accuracies: {[round(a, 4) for a in best_config['fold_accuracies']]}\n")
+
+# Comparison withe the original Model 2 configuration
+original_config_accuracy = 0.9242    # From earlier CV results
+improvement = (best_config['mean_accuracy'] - original_config_accuracy) * 100
+
+print("COMPARISON WITH ORIGINAL MODEL 2:")
+print(f"Original Model 2 Accuracy: {original_config_accuracy:.4f}")
+print(f"Tuned Model 2 CV Accuracy: {best_config['mean_accuracy']:.4f}")
+print(f"Improvement: {improvement:+.2f} %")
+
+if improvement > 0:
+    print(f"\nHypermarameter tuning improved Model 2 performance by {improvement:.2f} %")
+else:
+    print(f"\nOriginal Hyperparameters were already near optimal (difference: {improvement:.2f} %)")
+
 
