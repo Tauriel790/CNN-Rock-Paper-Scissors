@@ -1266,7 +1266,7 @@ def build_tuned_model_2 (learning_rate, dropout_rate, conv_filters, dense_units)
 
 # Grid search with 3-fold cross validation
 K_FOLDS_TUNING = 3
-TUNING_EPOCHS = 10
+TUNING_EPOCHS = 5
 
 kf_tuning = StratifiedKFold(n_splits = K_FOLDS_TUNING, shuffle = True, random_state = 42)
 
