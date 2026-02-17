@@ -10,7 +10,8 @@ from PIL import Image
 from pathlib import Path
 import random
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix
+import seaborn as sns
 import itertools
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
@@ -1615,6 +1616,27 @@ print("\nMisclassification breakdown:")
 for pattern, count in sorted(misclassified_matrix.items(), key = lambda x: x[1], reverse = True):
     print(f"{pattern}: {count} cases")
 
+# ------------------------------------------------------------- CONFUSION MATRIX -----------------------------------------------------------------------------------------------------------------------------
+# We do the confusion matrix only for our best trained mode which is Model 2 Tuned
+
+# Calculating confusion matrix for final tuned Model 2
+conf_matrix = confusion_matrix(test_labels, test_pred_model_2_tuned)
+
+# Visualize confusion matrix
+plt.close("all")
+plt.figure(figsize = (10, 8))
+sns.heatmap(conf_matrix, annot = True, fmt = "d", cmap = "Blues", xticklabels = classes, yticklabels = classes, cbar_kws = {'label': 'Count'})
+plt.title("Confusion Matrix Model 2 Tuned", fontsize = 16, fontweight = "bold")
+plt.ylabel("True label", fontsize = 12)
+plt.xlabel("Predicted label", fontsize = 12)
+plt.tight_layout()
+plt.show(block = False); plt.pause(3)
+
+print("\nConfusion Matrix:")
+print(conf_matrix)
+print(f"\nDiagonal (correct predictions): {conf_matrix.diagonal()}")
+print(f"Off-diagonal (misclassifications): {conf_matrix.sum() - conf_matrix.diagonal().sum()}")
+
 # ------------------------------------------------------------- VISUALIZATION OF THE MISCLASSIFIED EXAMPLES --------------------------------------------------------------------------------------------------
 # Now we get the misclassified examples
 num_examples = len(misclassified_indices)
@@ -1637,9 +1659,27 @@ if num_examples > 0:
     # Getting the prediction probabilities (needed to predict again to get probabilities)
     test_pred_probs = final_model.predict(test_data, verbose = 0)
 
+    # Dynamic grid sizing based on number of misclassifications
+    if num_examples <= 3:
+        nrows, ncols = 1, num_examples
+        figsize = (5 * num_examples, 5)
+    elif num_examples <= 6:
+        nrows, ncols = 2, 3
+        figsize = (14, 9)
+    else:
+        nrows, ncols = 3, 4
+        figsize = (16, 12)
+
     # Creatin the figure
-    fig, axes = plt.subplots(3, 4, figsize = (18, 14))
+    plt.close("all")
+    fig, axes = plt.subplots(nrows, ncols, figsize = figsize)
     axes = axes.flatten()
+
+    # Handling single row case (axes is 1D array)
+    if num_examples <= 3:
+        axes = axes if num_examples > 1 else [axes]
+    else:
+        axes = axes.flatten()
 
     for idx, sample_idx in enumerate(sample_indices):
         # Get the image
@@ -1657,16 +1697,20 @@ if num_examples > 0:
         axes[idx].axis("off")
         axes[idx].set_title(
             f"True: {true_label}\nPredicted: {pred_label}\nConfidence: {confidence:.1f}%",
-            fontsize = 12,
+            fontsize = 11,
             color = "red",
-            fontweight = "bold"
+            fontweight = "bold",
+            pad = 8
         )
 
     # Hiding unused subplots
-    for idx in range(sample_size, 12):
-        axes[idx].axis("off")
+    total_subplots = nrows * ncols
+    if num_examples < total_subplots:
+        for idx in range (num_examples, total_subplots):
+            axes[idx].axis("off")
 
-    plt.suptitle("Misclassification Examples for model 2 tuned", fontsize = 16, fontweight = "bold")
+    plt.suptitle("Misclassification Examples for model 2 tuned", fontsize = 15, fontweight = "bold", y = 1.00)
+    plt.subplots_adjust(top = 0.93, hspace = 0.4)
     plt.tight_layout()
     plt.show(block = False); plt.pause(3)
 
@@ -1698,4 +1742,127 @@ if len(misclassified_indices) > 0:
     correct_confidences = [test_pred_probs[idx][test_pred_model_2_tuned[idx]] for idx in correctly_classified_indices]
     avg_correct_confidence = np.mean(correct_confidences) * 100
 
-    print()
+    print("\nPrediction confidence analysis:")
+    print(f"Average confidende on CORRECT predictions: {avg_correct_confidence:.2f}%")
+    print(f"Average confidence on MISCLASSIFIED predictions: {avg_misc_confidence:.2f}%")
+    print(f"Difference: {avg_correct_confidence - avg_misc_confidence:.2f}%")
+
+    if avg_misc_confidence < 70:
+        print("\nModel shows lower confidence on errors (good)")
+    else:
+        print("\nModel shows high confidence even on errors (overconfident)")
+
+# ----------------------------------------------------------- POTENTIAL MODEL LIMITATIONS --------------------------------------------------------------------------------------------------------------------------
+# Based on the misclassification analysis conducted above, several potential limitations of the model can be identified:
+
+# 1) Despite achieving high test accuracy, the model still makes occasiona classification errors
+#    - While performance is exellent, the model is not perfect and misclassifies a small percentage of test samples
+#    - This is expected behaviour for real-world classification tasks
+
+# 2) Misclassification patterns suggest potential confusion between similar hand gestures
+#    - Certain gestures pairs are more frequently confused
+#    - This indicates the model may struggle with subtle differences in finger positioning and hand orientation
+
+# 3) Errors are more likely to occur on:
+#    - Images with unusual hand positions, angles, or orientations not well represented in training data
+#    - Images with poor lighting conditions, shadows, or low coontrast
+#    - Edge cases such as partially visible hands or non-stanard gesture variations
+#    - Hands with appereances (skin tone, size, accessories) that differ from the training distribution
+
+# 4) Data augmentation limitations
+#    - While augmentation significantly improved generalization, it cannot replicate all possible real-world variations
+#    - Factors like different backgrounds, extreme lightning conditions, motion blur, or hand occlusions were not fully 
+#      covered by the augmentation strategy
+
+# 5) Model uncertainty awarness
+#    - Analysis of prediction confidence reveals that the model tipically shows lower confidence or misclassified examples
+#      compared to correct predictions, indicating appropriate uncertainty quantification
+#    - This behaviour is desirable as it allows for confidence-based filtering in production deployment
+
+# 6) Architectural considerations
+#    - Model 3 (advanced) demonstrated training instability despite achieving good final performance, suggesting that 
+#      architectural complexity requires careful hyperparameter tuning 
+#    - The tuned model 2 (intermidiate) achieved superior performance with more stable training, validating the 
+#      importance of hyperparameter optimization over architectural complexity alone
+
+# ------------------------------------------------------------- OVERFITTING AND UNDERFITTING ANALYSIS ----------------------------------------------------------------------------------------------------------------
+print("\nOVERFITTING AND UNDERFITTING ANALYSIS")
+
+# MODEL 1 (BASELINE)
+print("\nMODEL 1 (BASELINE)")
+print(f"Final Training Accuracy: {final_train_accuracy:.4f}")
+print(f"Final Validation Accuracy: {final_val_accuracy:.4f}")
+print(f"Accuracy Gap: {accuracy_gap:.4f} ({accuracy_gap * 100:.2f} %)")
+
+if final_train_accuracy < 0.85 and final_val_accuracy < 0.85:
+    print("Status: UNDERFITTING, Model capacity is too limited to learn the task properly")
+elif accuracy_gap > 0.1:
+    print(f"Status: OVERFITTING, Model memorizes training data but doesn't generalize well")
+else:
+    print("Status: GOOD FIT, Model generalizes well without significant overfitting")
+
+# MODEL 2 (INTERMIDIATE)
+print("\nMODEL 2 (INTERMIDIATE)")
+print(f"Final Training Accuracy: {final_train_accuracy_2:.4f}")
+print(f"Final Validation Accuracy: {final_val_accuracy_2:.4f}")
+print(f"Accuracy Gap: {accuracy_gap_2:.4f} ({accuracy_gap_2 * 100:.2f} %)")
+
+if accuracy_gap_2 > 0.1:
+    print(f"Status: OVERFITTING, Model memorizes training data but doesn't generalize well")
+elif accuracy_gap_2 < 0.05:
+    print("Status: GOOD FIT, Model generalizes well without significant overfitting")
+else:
+    print("Status: ACCEPTABLE, so minor overfitting, but within acceptable range")
+
+# MODEL 3 (ADVANCED)
+print("\nMODEL 3 (ADVANCED)")
+print(f"Final Training Accuracy: {final_train_accuracy_3:.4f}")
+print(f"Final Validation Accuracy: {final_val_accuracy_3:.4f}")
+print(f"Accuracy Gap: {accuracy_gap_3:.4f} ({accuracy_gap_3 * 100:.2f} %)")
+
+if accuracy_gap_3 > 0.1:
+    print(f"Status: OVERFITTING, Model memorizes training data but doesn't generalize well")
+elif accuracy_gap_3 < 0.05:
+    print("Status: GOOD FIT, Model generalizes well without significant overfitting")
+else:
+    print("Status: ACCEPTABLE, so minor overfitting, but within acceptable range")
+
+# Analysis summary ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# OBSERVATIONS:
+# All three models achieved good fit without significant overfitting or underfitting.
+
+# Model 1 and model 2: Training accuracy lower than validation accuracy (negative gap)
+# - This counterintuitive result is caused by data augmentation making training harder
+# - Augmented images (rotated, flipped, zoomed) are more challenging than clean validation images
+# - Negative gap is desirable, because it confirms that models generalize well without memorizing training data
+# - Dropout in Model 2 further increased the negative gap while improving generalization
+
+# Model 3: Training and validation accuracy nearly equal
+# - BatchNormalization and GlobalAveragePooling enabled high training accuracy without overfitting
+# - Lower dropout rate (0.3 vs 0.5) allowed closer fit to training data
+# - Training curves showed initial instability requiring extended warmup period
+# - After stabilization, achieved excellent performance without overfitting
+
+# REGULARIZATION STRATEGIES EMPLOYED:
+
+# 1) Data Augmentation: Random flipping, rotation, zoom, translation on all models
+#   - Increased dataset diversity and prevented overfitting
+#   - Trade-off: Lower training accuracy (expected and acceptable)
+
+# 2) Dropout: Model 2 (0.5), Model 3 (0.3)
+#   - Prevented neuron co-adaptation, improved robustness
+
+# 3) Early Stopping: Monitored validation accuracy, patience 5-10 epochs
+#   - Stopped training before overfitting occurred
+
+# 4) Architectural Choices (Model 3): GlobalAveragePooling, BatchNormalization
+#   - Reduced parameters and stabilized training
+
+# CONCLUSION:
+
+# No problematic underfitting or overfitting detected in any model. The negative accuracy gaps
+# in Model 1 and Model 2 are evidence that regularization (especially Data Augmentation) is working
+# as intended. All models learned robust features that generalize well to unseen data.
+# Model 2 (Tuned) was retrained on combined train + validation data, therefore no train-validation gap
+# analysis applies. Its strong test set performance confirms that the regularization strategies carried
+# over effectively from the original training pipeline.
