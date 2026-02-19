@@ -13,6 +13,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report, confusion_matrix
 import seaborn as sns
 import itertools
+import csv
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
 
@@ -750,6 +751,9 @@ model_3_advanced.compile(
 )
 
 # ------------------------------------------------------------ TRAINING THE 3 MODELS ----------------------------------------------------------------------
+# First we create a folder for saved models
+os.makedirs("models", exist_ok = True)
+
 # 1) TRAINING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
 # First we define callbacks to block the training proces if we see that there is not improvement between two callbacks
 callbacks_1 = [
@@ -777,6 +781,9 @@ history_model_1 = model_1_baseline.fit(
 )
 
 print ("\nBaseline CNN model training completed.")
+
+# Saving the model in the models folder
+model_1_baseline.save("models/model_1_baseline.keras")
 
 # Summary of the training results for the baseline model
 final_train_loss = history_model_1.history["loss"][-1]
@@ -832,7 +839,11 @@ history_model_2 = model_2_intermidiate.fit(
     callbacks = callbacks_2
 )
 
+
 print("\nIntermidiate CNN model training complete")
+
+# Saving also model 2 into the models folder
+model_2_intermidiate.save("models/model_2_intermidiate.keras")
 
 # Summary of results
 final_train_loss_2 = history_model_2.history["loss"][-1]
@@ -893,6 +904,9 @@ history_model_3 = model_3_advanced.fit(
 )
 
 print("\nAdvanced CNN model training complete")
+
+# Saving model 3 in the models folder
+model_3_advanced.save("models/model_3_advanced.keras")
 
 # Summary of results
 final_train_loss_3 = history_model_3.history["loss"][-1]
@@ -1138,6 +1152,26 @@ for model_key in ["model_1", "model_2", "model_3"]:
     print(f"Per-Fold Scores: {[round(a, 4) for a in accs]}")
     print(f"Stability: {'Stable' if std_acc < 0.03 else 'Some variance across folds'}")
 
+# Now we save th results of the 5 fold cross validation in a csv file
+os.makedirs("results", exist_ok = True)
+
+with open("results/cv_results.csv", "w", newline = "") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Model", "Mean Accuracy", "Std Accuracy", "Mean Loss"])
+
+    for model_key in ["model_1", "model_2", "model_3"]:
+        accs = cv_results[model_key]["accuracy"]
+        losses = cv_results[model_key]["loss"]
+
+        writer.writerow([
+            model_key,
+            np.mean(accs),
+            np.std(accs),
+            np.mean(losses)
+        ])
+
+print("Saved CV results to results/cv_results.csv")
+
 # Visualization of cross-validation results -------------------------------------------------------------------------------------------------------------------------------------------------
 plt.close("all")
 fig, axes = plt.subplots(1, 2, figsize = (14, 6))
@@ -1266,7 +1300,7 @@ def build_tuned_model_2 (learning_rate, dropout_rate, conv_filters, dense_units)
 
 # Grid search with 3-fold cross validation
 K_FOLDS_TUNING = 3
-TUNING_EPOCHS = 5
+TUNING_EPOCHS = 10
 
 kf_tuning = StratifiedKFold(n_splits = K_FOLDS_TUNING, shuffle = True, random_state = 42)
 
@@ -1477,6 +1511,9 @@ final_history = final_model.fit(
     callbacks = [tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 5, restore_best_weights = True)] 
 )
 
+# Now we save the tuned model 2 into the models folder as well
+final_model.save("models/model_2_tuned_final.keras")
+
 test_pred_model_2_tuned = np.argmax(final_model.predict(test_data, verbose = 0), axis = 1)
 
 accuracy_2_tuned = accuracy_score(test_labels, test_pred_model_2_tuned)
@@ -1520,7 +1557,7 @@ axes[0, 1].plot(history_model_1.history["accuracy"], label = "Training accuracy"
 axes[0, 1].plot(history_model_1.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "orange")
 axes[0, 1].set_title("Model 1 (Baseline) - Accuracy curve", fontsize = 14, fontweight = "bold")
 axes[0, 1].set_xlabel("Epoch", fontsize = 12)
-axes[0, 1].set_ylabel("Accuracy", fontize = 12)
+axes[0, 1].set_ylabel("Accuracy", fontsize = 12)
 axes[0, 1].legend(fontsize = 11)
 axes[0, 1].grid(True, alpha = 0.3)
 
@@ -1539,7 +1576,7 @@ axes[1, 1].plot(history_model_2.history["accuracy"], label = "Training accuracy"
 axes[1, 1].plot(history_model_2.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "yellow")
 axes[1, 1].set_title("Model 2 (Intermidiate) - Accuracy curve", fontsize = 14, fontweight = "bold")
 axes[1, 1].set_xlabel("Epoch", fontsize = 12)
-axes[1, 1].set_ylabel("Accuracy", fontize = 12)
+axes[1, 1].set_ylabel("Accuracy", fontsize = 12)
 axes[1, 1].legend(fontsize = 11)
 axes[1, 1].grid(True, alpha = 0.3)
 
