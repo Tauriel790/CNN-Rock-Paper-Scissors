@@ -1,7 +1,29 @@
-venv/
+# Virtual environment
 .venv/
-env/
+
+# Dataset
+data/
+
+# Saved models
+models/
+
+# Results
+results/
+
+# Personal test images (privacy)
+my_test_data/
+
+# VS Code settings
+.vscode/
+
+# Python cache
 __pycache__/
 *.pyc
-data/
-.vscode/
+*.pyo
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
