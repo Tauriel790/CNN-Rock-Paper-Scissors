@@ -301,10 +301,10 @@ for idx, cls in enumerate(classes):
         b_means.append(np.mean(img_array[:, :, 2]))
 
     # Bar plot of average channel values
-    channels = ["blue", "green", "yellow"]
+    channels = ["Red", "Green", "Blue"]
     values = [np.mean(r_means), np.mean(g_means), np.mean(b_means)]
 
-    axes[idx].bar(channels, values, color = ["blue", "green", "yellow"], alpha = 0.7)
+    axes[idx].bar(channels, values, color = ["Red", "Green", "Blue"], alpha = 0.7)
     axes[idx].set_title(f"Average RGB Channel Values {cls.capitalize()}")
     axes[idx].set_ylabel("Average Pixel Value")
     axes[idx].set_ylim([0, 200])
@@ -1771,30 +1771,30 @@ if len(misclassified_indices) > 0:
 #    - This is expected behaviour for real-world classification tasks
 
 # 2) Misclassification patterns suggest potential confusion between similar hand gestures
-#    - Certain gestures pairs are more frequently confused
+#    - Most errors are concentrated in one or two classes, while others achieve perfect classification
 #    - This indicates the model may struggle with subtle differences in finger positioning and hand orientation
 
 # 3) Errors are more likely to occur on:
 #    - Images with unusual hand positions, angles, or orientations not well represented in training data
 #    - Images with poor lighting conditions, shadows, or low contrast
-#    - Edge cases such as partially visible hands or non-stanard gesture variations
-#    - Hands with appereances (skin tone, size, accessories) that differ from the training distribution
+#    - Edge cases such as partially visible hands or non-standard gesture variations
+#    - Hands with appearances (skin tone, size, accessories) that differ from the training distribution
 
 # 4) Data augmentation limitations
 #    - While augmentation significantly improved generalization, it cannot replicate all possible real-world variations
 #    - Factors like different backgrounds, extreme lighting conditions, motion blur, or hand occlusions were not fully 
 #      covered by the augmentation strategy
 
-# 5) Model uncertainty awarness
-#    - Analysis of prediction confidence reveals that the model typically shows lower confidence or misclassified examples
+# 5) Model uncertainty awareness
+#    - Analysis of prediction confidence reveals that the model typically shows lower confidence on misclassified examples
 #      compared to correct predictions, indicating appropriate uncertainty quantification
 #    - This behaviour is desirable as it allows for confidence-based filtering in production deployment
 
 # 6) Architectural considerations
-#    - Model 3 (advanced) demonstrated training instability despite achieving good final performance, suggesting that 
-#      architectural complexity requires careful hyperparameter tuning 
-#    - The tuned model 2 (intermediate ) achieved superior performance with more stable training, validating the 
-#      importance of hyperparameter optimization over architectural complexity alone
+#    - Model 3 (Advanced) demonstrated training instability despite achieving the highest final test accuracy,
+#      suggesting that architectural complexity requires careful hyperparameter tuning
+#    - Model 2 (Tuned) closely matched Model 3 performance with more stable training, validating
+#      the importance of hyperparameter optimization over architectural complexity alone
 
 # ------------------------------------------------------------- OVERFITTING AND UNDERFITTING ANALYSIS ----------------------------------------------------------------------------------------------------------------
 print("\nOVERFITTING AND UNDERFITTING ANALYSIS")
@@ -1878,12 +1878,11 @@ else:
 # analysis applies. Its strong test set performance confirms that the regularization strategies carried
 # over effectively from the original training pipeline. 
 
-# Among all the models evaluated, Model 2 (tuned) achieved the bst overall performance on the test set,
-# outperforming even the more complex Model 3 (Advanced). This result highlights a key principle in machine
-# learning: a simpler, well-tuned model can outperform a more complex architecture trained with default
-# hyperparameters. Hyperparameter optimization proved to be more impactful than increasing architectural 
-# complexity, demonstrating that careful tuning is often a more efficient path to better performance than
-# simply adding more layers or parameters.
+# Among all models, Model 3 (Advanced) achieved the highest test accuracy (0.9878), followed closely
+# by Model 2 (Tuned) at 0.9818. Notably, Model 2 (Tuned) outperformed Model 2 (untuned, 0.9787),
+# demonstrating that hyperparameter tuning improved performance even on a simpler architecture.
+# The small gap between Model 3 and Model 2 (Tuned) suggests that a well-tuned simpler model
+# can closely match a more complex architecture, often at lower computational cost.
 
 # --------------------------------------------------------- GENERALIZATION TEST --------------------------------------------------------------------------------
 # Now, we want also to valuate the model on a custom dataset with personal hand gestures images. Images were taken with a personal device under different 
