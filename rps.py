@@ -14,12 +14,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import seaborn as sns
 import itertools
 import csv
+from collections import Counter
 
 # --------------------------------------------------------------- EDA (exploratory data analysis) ------------------------------------------------------------------------
 
-# first of all the distribution of the images between the three classes "rock", "paper" and "scissors" is shown through the 
-# use of a bar plot. As it can be seen from the resulting plot, the "scissors" class has the highest number of counts in respect
-# to the other classes, even though all of the classes have similar distributions in the plot
+# first of all the distribution of the images between the three classes "rock", "paper" and "scissors" is shown through the use of a bar plot. As it can be seen from the 
+# resulting plot, the "scissors" class has the highest number of counts in respect to the other classes, even though all of the classes have similar distributions 
+# in the plot
 
 directory = Path("data")
 classes = ["paper", "rock", "scissors"]
@@ -51,7 +52,7 @@ for ax, img_path in zip (axes, sample):
         ax.imshow(im)
         ax.axis("off")
 
-plt.suptitle("Random paper's images examples", y = 2)
+plt.suptitle("Random paper's images examples", y = 0.8)
 plt.subplots_adjust(wspace = 1)
 plt.tight_layout()
 plt.show(block = False); plt.pause(2)
@@ -71,7 +72,7 @@ for ax, img_path in zip (axes, sample):
         ax.imshow(im)
         ax.axis("off")
 
-plt.suptitle("Random rock's images examples", y = 2)
+plt.suptitle("Random rock's images examples", y = 0.8)
 plt.subplots_adjust(wspace = 1)
 plt.tight_layout()
 plt.show(block = False); plt.pause(2)
@@ -91,7 +92,7 @@ for ax, img_path in zip (axes, sample):
         ax.imshow(im)
         ax.axis("off")
 
-plt.suptitle("Random scissors' images examples", y = 2)
+plt.suptitle("Random scissors' images examples", y = 0.8)
 plt.subplots_adjust(wspace = 1)
 plt.tight_layout()
 plt.show(block = False); plt.pause(2)
@@ -116,8 +117,8 @@ for cls in classes:
     print(f"Height: min = {min(heights)}, max = {max(heights)}, average = {np.mean(heights)}")
     print(f"Channels: {set(channels)}")
 
-# 2) Pixel intensity analysis: This shows if the images are well exposed or we have to adjust them
-# because they are too dark or too bright. We will plot the pixel intensity distribution for a sample of images from each class.
+# 2) Pixel intensity analysis: This shows if the images are well exposed or we have to adjust them because they are too dark or too bright. We will plot the 
+# pixel intensity distribution for a sample of images from each class.
 
 # - for Paper class
 plt.close("all")
@@ -166,6 +167,10 @@ plt.title ("Pixel Intensity Distribution for Sample Scissors Images")
 plt.xlabel ("Pixel Intensity")
 plt.ylabel ("Frequency")
 plt.show(block = False); plt.pause (2)
+
+# As we can see from the resulting plots, all 3 classes show a consistent bimodal distribution reflecting the 2 dominant pixel groups in the images which are 
+# the green screen background (darker pixels) and the skin tones (lighter pixels). The absence of extreme valus confirms that the images are well exposed and 
+# require no brightness or contrast correction before training.
 
 # 3) Visual check of the quality of the images
 
@@ -245,6 +250,11 @@ ax2.set_ylabel("Contrast (Std Dev of Pixel Values)")
 plt.tight_layout()
 plt.show(block = False); plt.pause (2)
 
+# Both brightness and contrast values (as it can be seen from the above plots) are nearly identical across
+# all the 3 classes, confirming that the dataset is visually consistent with no class sgowing unusual 
+# lighting or exposure conditions. This uniformity further validates that no additional preprocessing 
+# corrections are required before training
+
 # 5) Brightness and Contrast Analysis scatter plot
 plt.close("all")
 fig, ax = plt.subplots(figsize = (8, 6))
@@ -271,6 +281,11 @@ ax.grid(True, alpha = 0.3)
 plt.tight_layout()
 plt.show(block = False); plt.pause (2)
 
+# The scatter plot confirms that all the 3 classes overlap significantly in the brightness and contrast space, with no class forming
+# a clearly separate cluster. This indicates that the classes cannot be distinguished by brightness or contrast alone, confirming that
+# the CNN must learn shape and structural features (such as finger positions and gestures) rather than relying on lightning differences
+# between the classes.
+
 # 6) RGB Channel Analysis (color distribution patterns of the images present in out dataset)
 plt.close("all")
 fig, axes = plt.subplots(1, 3, figsize = (18, 5))
@@ -296,6 +311,11 @@ for idx, cls in enumerate(classes):
 
 plt.tight_layout()  
 plt.show(block = False); plt.pause(2)
+
+# The green channel dominates across all the 3 classes, which is expected given the green background present in all the images.
+# The consistent RGB pattern across paper, rock and scissors confirms again that there is no color bias between classes so the 
+# CNN will not be able to distinguish gestures based on color alone, reinforcing that it must learn structural and shape based 
+# features instead.
 
 # SUMMARY OF THE FINDINGS OBTAINED FROM THE EDA
 
@@ -342,13 +362,9 @@ print("All three classes sho similar RGB distribution patterns")
 print("No significant color bias detected between the classes")
 
 # ------------------------------------------------------------- TRAIN, VALIDATION AND TEST SETS SPLIT  ------------------------------------------------------------------------
-
-# First, it is important to split the data into train and test set before any processing to avoid data leakage. This ensures that the test set data remain unseen during
-# the training process and that no information from the test set influences the model training. Best practice: splitting at File Level before building any tf.data pipelines.
-# This guarantees:
-# - zero leakage
-# - Full reproducibility across sessions and environments
-# - Transparent, auditable splits (so we can inspect exactly which files are where)
+# Before any processing, the dataset is split into training (70%), validation (15%) and test (15%) sets at the file level. Splitting before building any tf.data pipelines 
+# ensures zero data leakage (so, no information from the validation or test sets can influence processing or training). A fixed random seed (42) guarantees full reproducibility
+# across sessions. The test set remains complitely untouched until final evaluation.
 
 # Collecting all the image paths and their labels from the directory
 all_images_paths = []
@@ -407,8 +423,8 @@ for split_name, split_labels in [("Train", train_labels), ("Val", val_labels), (
 def load_and_resize (path, label):
     image = tf.io.read_file(path)
     image = tf.image.decode_image(image, channels = 3, expand_animations = False)
-    image = tf.image.resize(image, [150, 150])
-    image.set_shape([150, 150, 3])
+    image = tf.image.resize(image, [64, 64])
+    image.set_shape([64, 64, 3])
     return image, label
 
 BATCH_SIZE = 30
@@ -437,7 +453,7 @@ print(f"Test batches: {tf.data.experimental.cardinality(test_data).numpy()}")
 
 # ---------------------------------------------------------------------- PROCESSING OF THE DATA ------------------------------------------------------------------------------
 # Now that the data has been splitted into train, validation and test sets, we can proceed with the processing of the data. Since the dimensions of the images have already 
-# been set to 150 x 150 pixels during the loading phase (image resizing step), we can now focus on normalizing the pixel values to a range of [0, 1] and applying data 
+# been set to 64 x 64 pixels during the loading phase (image resizing step), we can now focus on normalizing the pixel values to a range of [0, 1] and applying data 
 # augmentation techniques to enhance the diversity of the training dataset.
 
 # 1) NORMALIZATION: -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -512,7 +528,7 @@ for class_idx, cls in enumerate(classes):
         label_mode = "int",
         class_names = classes,
         batch_size = 1,
-        image_size = (150, 150),
+        image_size = (64, 64),
         shuffle = True,
         seed = 42 + class_idx
     )
@@ -544,16 +560,16 @@ plt.tight_layout()
 plt.show(block = False); plt.pause (3)
 
 # ------------------------------------------------------------------- CNN ARCHITECTURES  ----------------------------------------------------------------------------------
-# Now that the data has been properly processed, we can proceed with the definition of the CNN architectures that will be used for the classification task. Three different CNN architectures
-# will be defined and compared: a simple CNN, a deeper CNN and a transfer learning model using a pre-trained network (MobileNetV2). Each architecture will be built, compiled, trained and evaluated
-# separately to assess their performance on the rock, paper, scissors dataset.
+# Now that the data has been properly processed, we can proceed with the definition of the CNN architectures used for the classification task. Three CNN architectures with
+# incremental complexity will be defined and compared: a baseline CNN, an intermediate CNN and an advanced CNN. Each architecture will be built, compiled, trained and 
+# evaluated separately to assess their performance on the rock, paper, scissors dataset.
 
 # ------------------------------------------------------------- 1) SIMPLE/BASELINE CNN ARCHITECTURE: -----------------------------------------------------------------------
-# This baseline model employs minimal depth to test whether basi feature extraction is sufficient for the 3 class rock-paper-scissors task. With only 2 convultional block and no dropout,
+# This baseline model employs minimal depth to test whether basic feature extraction is sufficient for the 3 class rock-paper-scissors task. With only 2 convolutional blocks and no dropout,
 # this model serves as a benchmark for more complex architectures.
 
 model_1_baseline = tf.keras.Sequential([
-    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+    tf.keras.layers.Input(shape = (64, 64, 3), name = "input"),
 
     # Convolutional Block 1
     # - 32 filters
@@ -563,7 +579,7 @@ model_1_baseline = tf.keras.Sequential([
     # MaxPooling layer to reduce spatial dimensions and retain important features
     tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
 
-    # Conolutional Block 2
+    # Convolutional Block 2
     # - 64 filters: Learn more complex features
     # - 3x3 kernel size
     # - Progressively increasing the number of filters helps the model capture a wider range of features at different levels of abstraction
@@ -583,21 +599,21 @@ model_1_baseline = tf.keras.Sequential([
 print ("\nModel architecture - Simple/Baseline CNN:")
 model_1_baseline.summary()
 
-# ------------------------------------------------------------ 2) INTERMIDIATE CNN ARCHITECTURE: ------------------------------------------------------------------------------
-# This model compared with the baseline CNN architecture implementd above, adds a third convolutional block (with 128 filters) to capture more complex feature hierarchies.
-# Additionally, dropout layers (dropout rate of 0.5) are introduced after each convolutional block to mitigate overfitting by randomly deactivating neurons during training. 
-# This helps the model generalize better to unseen data.
+# ------------------------------------------------------------ 2) INTERMEDIATE CNN ARCHITECTURE: ------------------------------------------------------------------------------
+# This model, compared with the baseline CNN architecture implemented above, adds a third convolutional block (with 128 filters) to capture more complex feature hierarchies. 
+# Additionally, a dropout layer (dropout rate of 0.5) is introduced after the dense layer to mitigate overfitting by randomly deactivating neurons during training. This helps
+# the model to generalize better to unseen data. 
 
-model_2_intermidiate = tf.keras.Sequential([
+model_2_intermediate = tf.keras.Sequential([
     # Input layer
-    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+    tf.keras.layers.Input(shape = (64, 64, 3), name = "input"),
 
     # Convolutional Block 1:
     # - 32 filters which will learn basic features such as edges, colors and simple textures
     # - 3x3 kernel size to capture local patterns in the images
-    # - ReLU activation which intriduces non-linearity to help the model learn complex relationships between features
+    # - ReLU activation which introduces non-linearity to help the model learn complex relationships between features
     tf.keras.layers.Conv2D(32, (3, 3), activation = "relu", name = "conv1"),
-    # MaxPooling layer to reduce the spacial dimensions of the faature maps and retain the most important features
+    # MaxPooling layer to reduce the spatial dimensions of the feature maps and retain the most important features
     tf.keras.layers.MaxPooling2D((2, 2), name = "maxpool1"),
 
     # Convolutional Block 2:
@@ -631,7 +647,7 @@ model_2_intermidiate = tf.keras.Sequential([
 ], name = "Intermediate_CNN")
 
 # Summary of the model architecture
-model_2_intermidiate.summary()
+model_2_intermediate.summary()
 
 # ------------------------------------------------------------ 3) ADVANCED CNN ARCHITECTURE ------------------------------------------------------------------------------------
 # This model implements a modern CNN architecture following best practices from state of the art networks like ResNet and EfficientNet. The architecture features 4 convolutional 
@@ -639,7 +655,7 @@ model_2_intermidiate.summary()
 
 model_3_advanced = tf.keras.Sequential([
     # Input layer
-    tf.keras.layers.Input(shape = (150, 150, 3), name = "input"),
+    tf.keras.layers.Input(shape = (64, 64, 3), name = "input"),
 
     # ---------------------- Convolutional Block 1 (basic feature extraction): --------------------------------
     # - first convolutional layer with 32 filters 
@@ -647,7 +663,7 @@ model_3_advanced = tf.keras.Sequential([
     # - use_bias = False because BatchNormalization provides its own bias term
     tf.keras.layers.Conv2D(32, 3, padding = "same", use_bias = False, name = "conv1"),
 
-    # BatchNomralization normalizes the output of the convolution to have mean = 0 and variance = 1
+    # BatchNormalization normalizes the output of the convolution to have mean = 0 and variance = 1
     # This stabilizes training and allows higher learning rates
     tf.keras.layers.BatchNormalization(name = "bn1"),
 
@@ -657,7 +673,7 @@ model_3_advanced = tf.keras.Sequential([
     # MaxPooling reduces spatial dimensions by half
     tf.keras.layers.MaxPooling2D(name = "maxpool1"),
 
-    # ---------------------- Convolutional Block 2 (Mid level featue extraction): --------------------------------
+    # ---------------------- Convolutional Block 2 (Mid level feature extraction): --------------------------------
     # - 64 filters to learn more complex feature combinations
     tf.keras.layers.Conv2D(64, 3, padding = "same", use_bias = False, name = "conv2"),
     tf.keras.layers.BatchNormalization(name = "bn2"),
@@ -667,7 +683,7 @@ model_3_advanced = tf.keras.Sequential([
     tf.keras.layers.MaxPooling2D(name = "maxpool2"),
 
     # ---------------------- Convolutional Block 3 (high level feature extraction): --------------------------------
-    # 128 filters to capture hand gestures shaoes and specific patterns
+    # 128 filters to capture hand gestures shapes and specific patterns
     tf.keras.layers.Conv2D(128, 3, padding = "same", use_bias = False, name = "conv3"),
     tf.keras.layers.BatchNormalization(name = "bn3"),
     tf.keras.layers.Activation("relu", name = "relu3"),
@@ -685,7 +701,7 @@ model_3_advanced = tf.keras.Sequential([
 
     # ---------------------- Global Average Pooling: Dimensionality reduction ----------------------------------------------
     # Global average pooling averages each 9x9 feature map into a single value.
-    # This is a more modern alrernative of flatten that reduces overfitting and improves generalization
+    # This is a more modern alternative of flatten that reduces overfitting and improves generalization
     tf.keras.layers.GlobalAveragePooling2D(name = "global_avg_pool"),
 
     # ---------------------- Classification head: ----------------------------------------------------------------------
@@ -695,7 +711,7 @@ model_3_advanced = tf.keras.Sequential([
     # Dropout layer to further prevent overfitting in the classification head
     tf.keras.layers.Dropout(0.3, name = "dropout2"),
 
-    # Output layer with 3 units (one pr class: paper, rock, scissors) and softmax activatio.
+    # Output layer with 3 units (one per class: paper, rock, scissors) and softmax activation.
     # Softmax converts raw scores into probability distribution summing to 1.0
     tf.keras.layers.Dense(3, activation = "softmax", name = "output")
 ], name = "Advanced_CNN")
@@ -703,7 +719,474 @@ model_3_advanced = tf.keras.Sequential([
 # Summary of the model architecture
 model_3_advanced.summary()
 
-# ------------------------------------------------------------ COMPILING THE 3 MODELS ----------------------------------------------------------------------
+# ------------------------------------------------- NESTED CROSS VALIDATION (and Hyperparameter tuning) -----------------------------------------------------
+
+# Nested cross-validation is the methodologically correct way to simultaneously compare architectures
+# AND tune hyperparameters without introducing optimistic bias.
+#
+# Structure:
+#   Outer loop  — 5-fold CV: provides an unbiased estimate of each model's generalization performance.
+#   Inner loop  — 2-fold CV (runs inside each outer fold, only on that fold's training data):
+#                 performs grid search to find the best hyperparameters for Model 2.
+#
+# Why nested?
+#   If hyperparameter search uses the same data that the outer CV evaluates on, the reported
+#   accuracy is optimistically biased — the model has "seen" the validation fold indirectly.
+#   The inner loop keeps hyperparameter selection completely blind to the outer validation fold,
+#   giving a truly honest performance estimate.
+#
+# Key design decisions:
+#   - StratifiedKFold: guarantees balanced class representation in every fold
+#   - Data augmentation applied inside every fold: CV reflects the actual training pipeline
+#   - Train + val merged as the CV pool: uses the full non-test pool (~85% of data)
+#   - Test set untouched: never used during CV, reserved for final evaluation only
+#   - Models 1 & 3 use fixed hyperparameters (no inner loop needed — they are baselines)
+#   - Model 2 runs an inner grid search in every outer fold; the best config found per fold
+#     is used to evaluate that fold, and the most frequent best config across folds is used
+#     for the final training run
+#
+# Epoch counts:
+#   Outer CV — 10 epochs for models 1 & 2, 30 for model 3 (BatchNorm needs warmup)
+#   Inner CV — 5 epochs per hyperparameter combination (goal is selection, not peak accuracy)
+
+X_cross_val, y_cross_val = [], []
+
+# Building fresh dataset from file paths to avoid any pipeline state issues
+train_data_cv = (
+    tf.data.Dataset.from_tensor_slices((train_paths, train_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+    .map(lambda x, y: (normalization_layer(x), y))
+)
+
+val_data_cv = (
+    tf.data.Dataset.from_tensor_slices((val_paths, val_labels))
+    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
+    .batch(BATCH_SIZE)
+    .map(lambda x, y: (normalization_layer(x), y))    
+)
+
+for images, labels in train_data_cv:
+    X_cross_val.append(images.numpy())
+    y_cross_val.append(labels.numpy())
+
+for images, labels in val_data_cv:
+    X_cross_val.append(images.numpy())
+    y_cross_val.append(labels.numpy())
+
+X_cross_val = np.concatenate(X_cross_val, axis = 0)
+y_cross_val = np.concatenate(y_cross_val, axis = 0)
+
+print(f"CV pool: {X_cross_val.shape[0]} samples | X shape: {X_cross_val.shape}, y shape: {y_cross_val.shape}")
+
+# Model factory functions: Each factory builds a fresh model from scratch, with no weight sharing across the folds
+def build_model_1():
+    """Baseline CNN: 2 convolutional blocks, no dropout."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (64, 64, 3)),
+        tf.keras.layers.Conv2D(32, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (3, 3), activation = "relu"),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(64, activation = "relu"),
+        tf.keras.layers.Dense(3, activation = "softmax"),
+    ], name = "Baseline_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+def build_model_2(learning_rate = 0.001, dropout_rate = 0.5, 
+                  conv_filters = (32, 64, 128), dense_units = 128):
+    """Intermediate CNN: 3 convolutional blocks + dropout."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=(64, 64, 3)),
+        tf.keras.layers.Conv2D(conv_filters[0], (3,3), activation="relu"),
+        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.Conv2D(conv_filters[1], (3,3), activation="relu"),
+        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.Conv2D(conv_filters[2], (3,3), activation="relu"),
+        tf.keras.layers.MaxPooling2D((2,2)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(dense_units, activation="relu"),
+        tf.keras.layers.Dropout(dropout_rate),
+        tf.keras.layers.Dense(3, activation="softmax"),
+    ], name = "Intermediate_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+def build_model_3():
+    """Advanced CNN: 4 convolutional blocks + BatchNorm + GlobalAveragePooling."""
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape = (64, 64, 3)),
+        tf.keras.layers.Conv2D(32, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(64, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(128, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Conv2D(256, 3, padding = "same", use_bias = False),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.MaxPooling2D(),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.GlobalAveragePooling2D(),
+        tf.keras.layers.Dense(128, activation = "relu"),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Dense(3, activation = "softmax"),
+    ], name = "Advanced_CNN_CV")
+    model.compile(
+        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.0001),
+        loss = "sparse_categorical_crossentropy",
+        metrics = ["accuracy"]
+    )
+    return model
+
+# Defining the hyperparameter grid to search
+# We keep the grid manageable (2-3 values per parameter) to avoid combinatorial explosion
+hyperparameter_grid = {
+    "learning_rate": [0.001, 0.01],          
+    "dropout_rate": [0.3, 0.5],                  
+    "conv_filters": [(32, 64, 128), (64, 128, 256)],  # original vs double capacity
+    "dense_units": [64, 128, 256]
+}
+
+# Calculation of the total combinations
+all_combinations = list(itertools.product(
+    hyperparameter_grid["learning_rate"],
+    hyperparameter_grid["dropout_rate"],
+    hyperparameter_grid["conv_filters"],
+    hyperparameter_grid["dense_units"]
+))
+
+total_combinations = len(all_combinations)
+
+print (f"Hyperparameter search space:")
+print(f" - Learning rates: {hyperparameter_grid['learning_rate']}")
+print(f" - Dropout rates: {hyperparameter_grid['dropout_rate']}")
+print(f" - Conv filter configurations: {hyperparameter_grid['conv_filters']}")
+print(f" - Dense layer sizes: {hyperparameter_grid['dense_units']}")
+print (f"\nTotal combinations to test: {total_combinations}")
+
+# -------- Outer CV settings ------------------------------------------
+K_FOLDS_OUTER  = 5
+K_FOLDS_INNER  = 2
+OUTER_EPOCHS_1 = 10   # Baseline
+OUTER_EPOCHS_2 = 10   # Intermediate (with best inner config)
+OUTER_EPOCHS_3 = 30   # Advanced (BatchNorm warmup)
+INNER_EPOCHS   = 5   # Inner grid search (selection, not peak accuracy)
+
+kf_outer = StratifiedKFold(n_splits = K_FOLDS_OUTER, shuffle = True, random_state = 42)
+kf_inner = StratifiedKFold(n_splits = K_FOLDS_INNER, shuffle = True, random_state = 0)
+
+cv_results = {
+    "model_1": {"accuracy": [], "loss": []},
+    "model_2": {"accuracy": [], "loss": []},
+    "model_3": {"accuracy": [], "loss": []}
+}
+
+# Tracking best hyperparameter config selected in each outer fold (for model 2)
+best_configs_per_fold = []
+
+print(f"Nested cross-validation (outer = {K_FOLDS_OUTER}-fold, inner = {K_FOLDS_INNER}-fold)")
+
+# ------- Outer Loop ---------------------------------------------------
+for outer_fold_idx, (outer_train_idx, outer_val_idx) in enumerate(
+    kf_outer.split(X_cross_val, y_cross_val), start = 1):
+    print(f"OUTER FOLD {outer_fold_idx} / {K_FOLDS_OUTER}")
+
+    X_outer_train, X_outer_val = X_cross_val[outer_train_idx], X_cross_val[outer_val_idx]
+    y_outer_train, y_outer_val = y_cross_val[outer_train_idx], y_cross_val[outer_val_idx]
+
+    outer_val_ds = (
+        tf.data.Dataset.from_tensor_slices((X_outer_val, y_outer_val))
+        .batch(BATCH_SIZE)
+        .prefetch(tf.data.AUTOTUNE)
+    )
+
+    # MODEL 1 - BASELINE (fixed hyperparameters, no inner loop needed)
+    m1 = build_model_1()
+    outer_train_ds_1 = (
+        tf.data.Dataset.from_tensor_slices((X_outer_train, y_outer_train))
+        .batch(BATCH_SIZE)
+        .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
+        .prefetch(tf.data.AUTOTUNE)
+    )
+    m1.fit(outer_train_ds_1, epochs=OUTER_EPOCHS_1, verbose=0)
+    loss_1, acc_1 = m1.evaluate(outer_val_ds, verbose=0)
+    cv_results["model_1"]["accuracy"].append(acc_1)
+    cv_results["model_1"]["loss"].append(loss_1)
+    print(f"    Outer val accuracy: {acc_1:.4f} | Loss: {loss_1:.4f}")
+    del m1
+    tf.keras.backend.clear_session()
+
+    # MODEL 2 - intermediate  (INNER LOOP: grid search on outer_train data)
+    print(f"\n  [Model 2 — Intermediate] Running inner {K_FOLDS_INNER}-fold grid search "
+          f"({total_combinations} combinations × {INNER_EPOCHS} epochs)...")
+
+    inner_tuning_results = []
+
+    for lr, dropout, filters, dense in all_combinations:
+        inner_accs = []
+
+        for inner_train_idx, inner_val_idx in kf_inner.split(X_outer_train, y_outer_train):
+            X_inner_train = X_outer_train[inner_train_idx]
+            y_inner_train = y_outer_train[inner_train_idx]
+            X_inner_val   = X_outer_train[inner_val_idx]
+            y_inner_val   = y_outer_train[inner_val_idx]
+
+            inner_model = build_model_2(lr, dropout, filters, dense)
+
+            inner_train_ds = (
+                tf.data.Dataset.from_tensor_slices((X_inner_train, y_inner_train))
+                .batch(BATCH_SIZE)
+                .map(lambda x, y: (data_augmentation(x, training=True), y),
+                     num_parallel_calls=tf.data.AUTOTUNE)
+                .prefetch(tf.data.AUTOTUNE)
+            )
+            inner_val_ds = (
+                tf.data.Dataset.from_tensor_slices((X_inner_val, y_inner_val))
+                .batch(BATCH_SIZE)
+                .prefetch(tf.data.AUTOTUNE)
+            )
+
+            inner_model.fit(inner_train_ds, epochs=INNER_EPOCHS, verbose=0)
+            _, inner_acc = inner_model.evaluate(inner_val_ds, verbose=0)
+            inner_accs.append(inner_acc)
+
+            del inner_model
+            tf.keras.backend.clear_session()
+
+        inner_tuning_results.append({
+            "learning_rate": lr,
+            "dropout_rate":  dropout,
+            "conv_filters":  filters,
+            "dense_units":   dense,
+            "mean_accuracy": np.mean(inner_accs)
+        })
+
+    # Pick best config from inner search
+    best_inner = max(inner_tuning_results, key=lambda x: x["mean_accuracy"])
+    best_configs_per_fold.append(best_inner)
+
+    print(f"    Best inner config: LR={best_inner['learning_rate']}, "
+          f"Dropout={best_inner['dropout_rate']}, "
+          f"Filters={best_inner['conv_filters']}, "
+          f"Dense={best_inner['dense_units']} "
+          f"(inner CV acc={best_inner['mean_accuracy']:.4f})")
+
+    # Retrain Model 2 with the best config on the full outer training fold
+    m2 = build_model_2(
+        learning_rate=best_inner["learning_rate"],
+        dropout_rate=best_inner["dropout_rate"],
+        conv_filters=best_inner["conv_filters"],
+        dense_units=best_inner["dense_units"]
+    )
+    outer_train_ds_2 = (
+        tf.data.Dataset.from_tensor_slices((X_outer_train, y_outer_train))
+        .batch(BATCH_SIZE)
+        .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
+        .prefetch(tf.data.AUTOTUNE)
+    )
+    m2.fit(outer_train_ds_2, epochs=OUTER_EPOCHS_2, verbose=0)
+    loss_2, acc_2 = m2.evaluate(outer_val_ds, verbose=0)
+    cv_results["model_2"]["accuracy"].append(acc_2)
+    cv_results["model_2"]["loss"].append(loss_2)
+    print(f"    Outer val accuracy: {acc_2:.4f} | Loss: {loss_2:.4f}")
+    del m2
+    tf.keras.backend.clear_session()
+
+    # MODEL 3 - ADVANCED (fixed hyperparameters, no inner loop needed)
+    m3 = build_model_3()
+    outer_train_ds_3 = (
+        tf.data.Dataset.from_tensor_slices((X_outer_train, y_outer_train))
+        .batch(BATCH_SIZE)
+        .map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
+        .prefetch(tf.data.AUTOTUNE)
+    )
+    m3.fit(outer_train_ds_3, epochs=OUTER_EPOCHS_3, verbose=0)
+    loss_3, acc_3 = m3.evaluate(outer_val_ds, verbose=0)
+    cv_results["model_3"]["accuracy"].append(acc_3)
+    cv_results["model_3"]["loss"].append(loss_3)
+    print(f"    Outer val accuracy: {acc_3:.4f} | Loss: {loss_3:.4f}")
+    del m3
+    tf.keras.backend.clear_session()
+
+# -------------- Outer CV results summary -------------------------------------------------------------
+print("Nested cross validation results summary")
+
+cv_summary = {}
+for model_key in ["model_1", "model_2", "model_3"]:
+    accs = cv_results[model_key]["accuracy"]
+    losses = cv_results[model_key]["loss"]
+    mean_acc = np.mean(accs)
+    std_acc = np.std(accs)
+    mean_loss = np.mean(losses)
+    std_loss = np.std(losses)
+
+    cv_summary[model_key] = {
+        "mean_accuracy": mean_acc,
+        "std_accuracy": std_acc,
+        "mean_loss": mean_loss,
+        "std_loss": std_loss,
+        "all_fold_accuracies": accs
+    }
+
+    print(f"\n{model_key.upper().replace('_', ' ')}:")
+    print(f"  Mean CV Accuracy : {mean_acc:.4f} ± {std_acc:.4f}")
+    print(f"  Mean CV Loss     : {mean_loss:.4f} ± {std_loss:.4f}")
+    print(f"  Per-Fold Scores  : {[round(a, 4) for a in accs]}")
+    print(f"  Stability        : {'Stable' if std_acc < 0.03 else 'Some variance across folds'}")
+
+# Now we determine the global best configuration for model 2 (so, the most frequent winner across the outer folds)
+# Each outer fold may have elected a slightly different best config.
+# We select the config that won most often; in case of a tie, pick the one with highest average inner CV accuracy.
+
+config_keys = [
+    (c["learning_rate"], c["dropout_rate"], c["conv_filters"], c["dense_units"])
+    for c in best_configs_per_fold
+]
+config_counts = Counter(config_keys)
+most_common_key = config_counts.most_common(1)[0][0]
+
+# Now we retrieve the full dict for that key
+best_config = next(
+    c for c in best_configs_per_fold
+    if (c["learning_rate"], c["dropout_rate"], c["conv_filters"], c["dense_units"]) == most_common_key    
+)
+
+print("BEST HYPERPARAMETER CONFIGURATION FOR MODEL 2")
+print(f"(selected by majority vote across {K_FOLDS_OUTER} outer folds)")
+print(f"{'='*70}")
+print(f"  Learning rate : {best_config['learning_rate']}")
+print(f"  Dropout rate  : {best_config['dropout_rate']}")
+print(f"  Conv filters  : {best_config['conv_filters']}")
+print(f"  Dense units   : {best_config['dense_units']}")
+print(f"  Won in {config_counts[most_common_key]}/{K_FOLDS_OUTER} outer folds")
+
+print(f"\nBest config selected per outer fold:")
+for i, c in enumerate(best_configs_per_fold, start=1):
+    print(f"  Fold {i}: LR={c['learning_rate']}, Dropout={c['dropout_rate']}, "
+          f"Filters={c['conv_filters']}, Dense={c['dense_units']} "
+          f"(inner acc={c['mean_accuracy']:.4f})")
+
+# Save CV results
+os.makedirs("results", exist_ok=True)
+
+with open("results/cv_results.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Model", "Mean Accuracy", "Std Accuracy", "Mean Loss"])
+    for model_key in ["model_1", "model_2", "model_3"]:
+        accs   = cv_results[model_key]["accuracy"]
+        losses = cv_results[model_key]["loss"]
+        writer.writerow([model_key, np.mean(accs), np.std(accs), np.mean(losses)])
+
+with open("results/best_configs_per_fold.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Outer Fold", "Learning Rate", "Dropout Rate", "Conv Filters",
+                     "Dense Units", "Inner CV Accuracy"])
+    for i, c in enumerate(best_configs_per_fold, start=1):
+        writer.writerow([i, c["learning_rate"], c["dropout_rate"],
+                         c["conv_filters"], c["dense_units"], c["mean_accuracy"]])
+
+print("\nSaved results to results/cv_results.csv and results/best_configs_per_fold.csv")
+
+# Visualization --------------------------------------------------------------------------
+plt.close("all")
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+model_labels = ["Model 1\n(Baseline)", "Model 2\n(Intermediate)", "Model 3\n(Advanced)"]
+colors       = ["red", "blue", "green"]
+fold_x       = np.arange(1, K_FOLDS_OUTER + 1)
+
+# Plot 1: Per-fold accuracy
+for model_key, label, color in zip(["model_1", "model_2", "model_3"], model_labels, colors):
+    axes[0].plot(fold_x, cv_results[model_key]["accuracy"],
+                 marker="o", label=label, color=color, linewidth=2, markersize=6)
+
+axes[0].set_title("Per-Fold Outer Validation Accuracy", fontsize=13, fontweight="bold")
+axes[0].set_xlabel("Outer Fold")
+axes[0].set_ylabel("Accuracy")
+axes[0].set_xticks(fold_x)
+axes[0].legend()
+axes[0].grid(True, alpha=0.3)
+axes[0].set_ylim([0, 1.05])
+
+# Plot 2: Mean ± std bar chart
+mean_accs = [cv_summary[k]["mean_accuracy"] for k in ["model_1", "model_2", "model_3"]]
+std_accs  = [cv_summary[k]["std_accuracy"]  for k in ["model_1", "model_2", "model_3"]]
+
+bars = axes[1].bar(model_labels, mean_accs, color=colors, alpha=0.8,
+                   yerr=std_accs, capsize=6, edgecolor="black", linewidth=1.2)
+
+for bar, mean, std in zip(bars, mean_accs, std_accs):
+    axes[1].text(bar.get_x() + bar.get_width() / 2,
+                 bar.get_height() + std + 0.01,
+                 f"{mean:.3f}±{std:.3f}",
+                 ha="center", va="bottom", fontsize=9, fontweight="bold")
+
+axes[1].set_title("Mean CV Accuracy ± Std Deviation", fontsize=13, fontweight="bold")
+axes[1].set_ylabel("Mean Accuracy")
+axes[1].set_ylim([0, 1.15])
+axes[1].grid(True, alpha=0.3, axis="y")
+
+plt.suptitle("Nested 5×2-Fold Cross-Validation: All 3 CNN Models",
+             fontsize=14, fontweight="bold")
+plt.tight_layout()
+plt.show(block=False); plt.pause(3)
+
+# ---- Best configs across folds visualization ----
+plt.close("all")
+fig, ax = plt.subplots(figsize=(10, 5))
+
+fold_labels  = [f"Fold {i}" for i in range(1, K_FOLDS_OUTER + 1)]
+inner_accs   = [c["mean_accuracy"] for c in best_configs_per_fold]
+bar_colors   = ["#2ECC71" if k == most_common_key else "#95A5A6" for k in config_keys]
+
+bars = ax.bar(fold_labels, inner_accs, color=bar_colors, edgecolor="black", linewidth=1.1)
+
+for bar, cfg in zip(bars, best_configs_per_fold):
+    label = (f"LR={cfg['learning_rate']}\nDO={cfg['dropout_rate']}\n"
+             f"F={cfg['conv_filters'][0]}-{cfg['conv_filters'][2]}\nD={cfg['dense_units']}")
+    ax.text(bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.005,
+            label, ha="center", va="bottom", fontsize=7.5)
+
+ax.set_title("Best Hyperparameter Config Selected per Outer Fold (Model 2)\n"
+             "Green = majority winner used for final training",
+             fontsize=12, fontweight="bold")
+ax.set_ylabel("Inner CV Accuracy")
+ax.set_ylim([0, 1.15])
+ax.grid(True, alpha=0.3, axis="y")
+plt.tight_layout()
+plt.show(block=False); plt.pause(3)
+
+print(f"\nNested cross-validation complete.")
+print(f"Best config for Model 2 confirmed. Proceeding to full training...")
+
+# ------------------------------------------------------------ 3 MODELS TRAINING ----------------------------------------------------------------------
+# All 3 architectures are now trained to completion for comparison and documentation.
+# Model 2 is also trained with the best hyperparameters found above.
+# CV results informed the epoch counts and architecture choices used here.
+
+os.makedirs("models", exist_ok=True)
+
+# ---- Compiling all the models -----------------------------------------------------------------------------------------------
+# Adam optimizer chosen for adaptive learning rate capabilities and fast convergence.
+# Sparse Categorical Crossentropy is appropriate for integer-encoded multi-class labels.
 
 # 1) COMPILING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
 print ("\nCompiling the Baseline CNN model...")
@@ -728,12 +1211,12 @@ model_1_baseline.compile(
     metrics = ["accuracy"]
 )
 
-# 2) COMPILING THE INTERMIDIATE CNN MODEL --------------------------------------------------------------------------------------
+# 2) COMPILING THE INTERMEDIATE CNN MODEL --------------------------------------------------------------------------------------
 print("\nCompiling the Intermediate CNN model...")
 
 # We use the same techiques for compiling the intermediate model as the baseline model because they are both suitable for our 
 # multi-class classification task and provide a good starting point for training.
-model_2_intermidiate.compile(
+model_2_intermediate.compile(
     optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
     loss = "sparse_categorical_crossentropy",
     metrics = ["accuracy"]
@@ -749,10 +1232,6 @@ model_3_advanced.compile(
     loss = "sparse_categorical_crossentropy",
     metrics = ["accuracy"]
 )
-
-# ------------------------------------------------------------ TRAINING THE 3 MODELS ----------------------------------------------------------------------
-# First we create a folder for saved models
-os.makedirs("models", exist_ok = True)
 
 # 1) TRAINING THE BASELINE CNN MODEL --------------------------------------------------------------------------------------
 # First we define callbacks to block the training proces if we see that there is not improvement between two callbacks
@@ -802,21 +1281,18 @@ print (accuracy_gap)
 
 if accuracy_gap > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
     print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
-elif accuracy_gap < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
-    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
 else:
-    print("No significant overfitting detected (gap < 5%).")
+    print("Acceptable minor overfitting detected (gap between 5% and 10%)")
 
 # Results:
-# Although data augmentation was optional, it was implemented in the training pipeline to enhance the diversity of the training data and improve the model's generalization capabilities.
-# The effects of data augmentation can be observed in the training and validation accuracy trends. If the training accuracy is significantly higher than the validation accuracy, it may 
-# indicate that the model is overfitting to the augmented training data. However, if both training and validation accuracies are improving and relatively close to each other, it suggests 
-# that the data augmentation is helping the model learn more robust features without overfitting. In this case, we can conclude that the data augmentation techniques implemented in the 
-# training pipeline have contributed positively to the model's performance on the rock-paper-scissors classification task, as evidenced by the training and validation accuracy trends 
-# observed during the training process. In fact, in our case training accuracy (85%) was lower than the validation accuracy (97%), which is expected when using augmentation techniques, 
-# and it indicates that the model is generalizing well to the validation data without overfitting to the augmented training data.
+# Although data augmentation was optional, it was implemented in the training pipeline to enhance 
+# the diversity of the training data and improve the model's generalization capabilities.
+# In this run, training accuracy was lower than validation accuracy (negative gap), which is 
+# expected when using augmentation techniques — augmented images are harder to classify than 
+# clean validation images. This confirms that the model is generalizing well to unseen data 
+# without overfitting to the training set.
 
-# 2) TRAINING THE INTERMIDIATE CNN MODEL --------------------------------------------------------------------------------------
+# 2) TRAINING THE intermediate  CNN MODEL --------------------------------------------------------------------------------------
 callbacks_2 = [
     tf.keras.callbacks.EarlyStopping(
         monitor = "val_accuracy",
@@ -831,7 +1307,7 @@ print("\nTraining the Intermediate CNN model...")
 EPOCHS = 20
 
 # Training the model
-history_model_2 = model_2_intermidiate.fit(
+history_model_2 = model_2_intermediate.fit(
     train_data,                   # Training dataset
     epochs = EPOCHS,              # 20 epochs
     validation_data = val_data,   # validation dataset
@@ -840,10 +1316,10 @@ history_model_2 = model_2_intermidiate.fit(
 )
 
 
-print("\nIntermidiate CNN model training complete")
+print("\nintermediate  CNN model training complete")
 
 # Saving also model 2 into the models folder
-model_2_intermidiate.save("models/model_2_intermidiate.keras")
+model_2_intermediate.save("models/model_2_intermediate.keras")
 
 # Summary of results
 final_train_loss_2 = history_model_2.history["loss"][-1]
@@ -862,10 +1338,8 @@ print(accuracy_gap_2)
 
 if accuracy_gap_2 > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
     print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
-elif accuracy_gap_2 < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
-    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
 else:
-    print("No significant overfitting detected (gap < 5%).")
+    print("Acceptable minor overfitting detected (gap between 5% and 10%)")
 
 # Results:
 # Model 2 demonstates a greater performance across all metrics if we compare it with the resutls of model 1:
@@ -889,7 +1363,7 @@ callbacks_3 = [
 
 print("\nTraining the advanced CNN model...")
 
-# Training configuration is the same as the baseline and intermidiate model to ensure a fair comparison between the two architectures.
+# Training configuration is the same as the baseline and intermediate  model to ensure a fair comparison between the two architectures.
 # In this case we increased the epochs to 50 instead of 20 because BatchNormalization requires more warmup time with lower learning rate (0.0001). The 
 # first 12 epochs are used for BatchNorm statistics stabilization, leaving almost 38 effective epochs for learning
 EPOCHS = 50
@@ -925,619 +1399,38 @@ print(accuracy_gap_3)
 
 if accuracy_gap_3 > 0.1:   # More than 10% gap between training and validation accuracy is a strong indicator of overfitting
     print("Warning: Potential overfitting detected (accuracy gap > 10%). Consider implementing regularization techniques or collecting more data.")
-elif accuracy_gap_3 < 0.05:   # 5-10% gap is generally acceptable, but less than 5% is ideal
-    print("Good: No significant overfitting detected (accuracy gap < 5%). The model is generalizing well to the validation data.")
 else:
-    print("No significant overfitting detected (gap < 5%).")
+    print("Acceptable minor overfitting detected (gap between 5% and 10%)")
 
-# ----------------------------------------------------------- CROSS VALIDATION OF ALL THE MODELS --------------------------------------------------------------------------------------------
-# Cross validation is performed on all 3 models to obtain a more robust and unbiaed estimate of their generalization performance. This implementation uses StratifiedKFold to ensure balanced 
-# class distribution across all folds, and applies the same data augmentation pipeline used in main training for consistency.
+# 4) TRAINING MODEL 2 TUNED WITH THE BEST HYPERPARAMETERS -----------------------------------------------------------------------------------------------------------------------------------
+# Retrained on combined train + validation data to maximise the data available for final training.
+print(f"\nTraining Tuned Model 2 with best hyperparameters:")
+print(f"  Learning rate: {best_config['learning_rate']}")
+print(f"  Dropout rate : {best_config['dropout_rate']}")
+print(f"  Conv filters : {best_config['conv_filters']}")
+print(f"  Dense units  : {best_config['dense_units']}")
 
-# Key design decisions:
-# - StratifiedKFold instead of KFold: Guarantees proportional class representation in each fold 
-# - Data augmentation applied: Cross validation now reflects the actual training setup (augmented data)
-# - Train and validation sets are merged for CV: Uses th full non-test pool (almost 85% of data) for more reliable estimates
-# - Test set untouched: Never used during Cross Validation, reserved for final evaluation only
-
-# For cross validation 10 epochs will be used instead of the 20/50 used before. Using 10 epoches keeps runtime practical. The goal here is robust comparative evaluation, not peak accuracy - 
-# that was already achieved in the full training runs above. But for model_3 we will still use at least 30 epochs
-
-# Extracting train + validation data into numpy arrays --------------------------------------------------------------------------------------------------------------------------------------
-X_cross_val, Y_cross_val = [], []
-
-# Building fresh dataset from the file paths to avoid any pipeline state issues 
-train_data_cv = (
-    tf.data.Dataset.from_tensor_slices((train_paths, train_labels))
-    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
-    .batch(BATCH_SIZE)
-    .map(lambda x, y: (normalization_layer(x), y))
+final_model = build_model_2(
+    learning_rate=best_config["learning_rate"],
+    dropout_rate=best_config["dropout_rate"],
+    conv_filters=best_config["conv_filters"],
+    dense_units=best_config["dense_units"]
 )
 
-val_data_cv = (
-    tf.data.Dataset.from_tensor_slices((val_paths, val_labels))
-    .map(load_and_resize, num_parallel_calls = tf.data.AUTOTUNE)
-    .batch(BATCH_SIZE)
-    .map(lambda x, y: (normalization_layer(x), y))
-)
-
-for images, labels in train_data_cv:
-    X_cross_val.append(images.numpy())
-    Y_cross_val.append(labels.numpy())
-
-for images, labels in val_data_cv:
-    X_cross_val.append(images.numpy())
-    Y_cross_val.append(labels.numpy())
-
-X_cross_val = np.concatenate(X_cross_val, axis = 0)
-Y_cross_val = np.concatenate(Y_cross_val, axis = 0)
-
-print(f"Cross Validation pool: {X_cross_val.shape[0]} samples")
-print(f"X shape: {X_cross_val.shape}, Y shape: {Y_cross_val.shape}")
-
-# Defining model factory functions -----------------------------------------------------------------------------------------------------------------------------------------------------------
-# Each factory recreates the model from scratch for every fold to ensure complete independence. This prevents weight leakage across folds, which would produce optimitically biased results.
-
-def build_modeL_1():
-    """Baseline CNN: 2 convolutional blocks, no dropout."""
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape = (150, 150, 3)),
-        tf.keras.layers.Conv2D(32, (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(64, activation = "relu"),
-        tf.keras.layers.Dense(3, activation = "softmax"),
-    ], name = "Baseline_CNN_CV")
-    model.compile(
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
-        loss = "sparse_categorical_crossentropy",
-        metrics = ["accuracy"]
-    )
-    return model
-
-def build_modeL_2():
-    """Intermediate CNN: 3 convolutional blocks + dropout."""
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape = (150, 150, 3)),
-        tf.keras.layers.Conv2D(32, (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(128, (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(128, activation = "relu"),
-        tf.keras.layers.Dropout(0.5),
-        tf.keras.layers.Dense(3, activation = "softmax"),
-    ], name = "Intermediate_CNN_CV")
-    model.compile(
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.001),
-        loss = "sparse_categorical_crossentropy",
-        metrics = ["accuracy"]
-    )
-    return model
-
-def build_modeL_3():
-    """Intermediate CNN: 3 convolutional blocks + dropout."""
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape = (150, 150, 3)),
-        tf.keras.layers.Conv2D(32, 3, padding = "same", use_bias = False),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Activation("relu"),
-        tf.keras.layers.MaxPooling2D(),
-        tf.keras.layers.Conv2D(64, 3, padding = "same", use_bias = False),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Activation("relu"),
-        tf.keras.layers.MaxPooling2D(),
-        tf.keras.layers.Conv2D(128, 3, padding = "same", use_bias = False),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Activation("relu"),
-        tf.keras.layers.MaxPooling2D(),
-        tf.keras.layers.Conv2D(256, 3, padding = "same", use_bias = False),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Activation("relu"),
-        tf.keras.layers.MaxPooling2D(),
-        tf.keras.layers.Dropout(0.3),
-        tf.keras.layers.GlobalAveragePooling2D(),
-        tf.keras.layers.Dense(128, activation = "relu"),
-        tf.keras.layers.Dropout(0.3),
-        tf.keras.layers.Dense(3, activation = "softmax"),
-    ], name = "Advanced_CNN_CV")
-    model.compile(
-        optimizer = tf.keras.optimizers.Adam(learning_rate = 0.0001),
-        loss = "sparse_categorical_crossentropy",
-        metrics = ["accuracy"]
-    )
-    return model
-
-# 5-fold Cross Validation loop ---------------------------------------------------------------------------------------------------------------------------------------------------------------
-K_FOLDS = 5
-
-# Different CV epochs for each model
-CV_EPOCHS_MODEL_1 = 10
-CV_EPOCHS_MODEL_2 = 10
-CV_EPOCHS_MODEL_3 = 30
-
-kf = StratifiedKFold(n_splits = K_FOLDS, shuffle = True, random_state = 42)
-
-cv_results = {
-    "model_1": {"accuracy": [], "loss": []},
-    "model_2": {"accuracy": [], "loss": []},
-    "model_3": {"accuracy": [], "loss": []},
-}
-
-model_builders = {
-    "model_1": build_modeL_1,
-    "model_2": build_modeL_2,
-    "model_3": build_modeL_3,
-}
-
-# Map each model to its specific CV epochs
-cv_epochs_map = {
-    "model_1": CV_EPOCHS_MODEL_1,
-    "model_2": CV_EPOCHS_MODEL_2,
-    "model_3": CV_EPOCHS_MODEL_3
-}
-
-for model_key, builder_fn in model_builders.items():
-    cv_epochs = cv_epochs_map[model_key]
-    print(f"Cross Validation: {model_key.upper().replace('_', '')} ({cv_epochs} epochs per fold)")
-
-    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_cross_val, Y_cross_val), start = 1):
-        print(f"\nFold {fold_idx}/{K_FOLDS}:")
-
-        X_fold_train, X_fold_val = X_cross_val[train_idx], X_cross_val[val_idx]
-        Y_fold_train, Y_fold_val = Y_cross_val[train_idx], Y_cross_val[val_idx]
-
-        # Fresh model for every fold which prevents any weight leakage between folds
-        fold_model = builder_fn()
-
-        # Creating tf.data datasets from numpy arrays to apply augmentation
-        # This makes CV consistent with the actual training pipeline
-        fold_train_ds = (
-            tf.data.Dataset.from_tensor_slices((X_fold_train, Y_fold_train))
-            .batch(BATCH_SIZE)
-            .map(lambda x, y: (data_augmentation(x, training = True), y), num_parallel_calls = tf.data.AUTOTUNE)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-
-        fold_val_ds = (
-            tf.data.Dataset.from_tensor_slices ((X_fold_val, Y_fold_val))
-            .batch(BATCH_SIZE)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-
-        fold_model.fit(
-            fold_train_ds,
-            epochs = cv_epochs,
-            validation_data = fold_val_ds,
-            verbose = 0
-        )
-
-        fold_loss, fold_accuracy = fold_model.evaluate(fold_val_ds, verbose = 0)
-
-        cv_results[model_key]["accuracy"].append(fold_accuracy)
-        cv_results[model_key]["loss"].append(fold_loss)
-
-        print(f"Fold {fold_idx} Accuracy: {fold_accuracy} | Loss: {fold_loss}")
-
-        del fold_model
-    # Free GPU/CPU memory after each fold to avoidc out of memory errors across 15 training runs    
-    tf.keras.backend.clear_session()
-
-# Cross validation results summary ----------------------------------------------------------------------------------------------------------------------------------------------------------
-print("\nCROSS VALIDATION RESULTS SUMMARY:\n")
-cv_summary = {}
-for model_key in ["model_1", "model_2", "model_3"]:
-    accs = cv_results[model_key]["accuracy"]
-    losses = cv_results[model_key]["loss"]
-    mean_acc =np.mean(accs)
-    std_acc = np.std(accs)
-    mean_loss = np.mean(losses)
-    std_loss = np.std(losses)
-
-    cv_summary[model_key] = {
-        "mean_accuracy": mean_acc,
-        "std_accuracy": std_acc,
-        "mean_loss": mean_loss,
-        "std_loss": std_loss,
-        "all_fold_accuracies": accs
-    }
-
-    print(f"\n{model_key.upper().replace('_', '')}:")
-    print(f"Mean CV Accuracy: {mean_acc:.4f}")
-    print(f"Mean CV loss: {mean_loss:.4f}")
-    print(f"Per-Fold Scores: {[round(a, 4) for a in accs]}")
-    print(f"Stability: {'Stable' if std_acc < 0.03 else 'Some variance across folds'}")
-
-# Now we save th results of the 5 fold cross validation in a csv file
-os.makedirs("results", exist_ok = True)
-
-with open("results/cv_results.csv", "w", newline = "") as f:
-    writer = csv.writer(f)
-    writer.writerow(["Model", "Mean Accuracy", "Std Accuracy", "Mean Loss"])
-
-    for model_key in ["model_1", "model_2", "model_3"]:
-        accs = cv_results[model_key]["accuracy"]
-        losses = cv_results[model_key]["loss"]
-
-        writer.writerow([
-            model_key,
-            np.mean(accs),
-            np.std(accs),
-            np.mean(losses)
-        ])
-
-print("Saved CV results to results/cv_results.csv")
-
-# Visualization of cross-validation results -------------------------------------------------------------------------------------------------------------------------------------------------
-plt.close("all")
-fig, axes = plt.subplots(1, 2, figsize = (14, 6))
-
-model_labels = ["Model 1\n(Baseline)", "Model_2\n(Intermidiate)", "Model_3\n(Advanced)"]
-colors = ["yellow", "green", "blue"]
-fold_x = np.arange(1, K_FOLDS + 1)
-
-# Plot 1: Per-fold accuracy line chart
-for model_key, label, color in zip (["model_1", "model_2", "model_3"], model_labels, colors):
-    axes[0].plot(fold_x, cv_results[model_key]["accuracy"],
-                 marker = "o", label = label, color = color, linewidth = 2, markersize = 6)
-
-axes[0].set_title ("Per-Fold Validation Accuracy", fontsize = 13, fontweight = "bold")
-axes[0].set_xlabel("Fold")
-axes[0].set_ylabel("Accuracy")
-axes[0].set_xticks(fold_x)
-axes[0].legend()
-axes[0].grid(True, alpha = 0.3)
-axes[0].set_ylim([0, 1.05])
-
-# Plot 2: Mean accuracy bar chart with standard deviation error bars
-mean_accs = [cv_summary[k]["mean_accuracy"] for k in ["model_1", "model_2", "model_3"]]
-std_accs = [cv_summary[k]["std_accuracy"] for k in ["model_1", "model_2", "model_3"]]
-
-bars = axes[1].bar(model_labels, mean_accs, color = colors, alpha = 0.8,
-                   yerr = std_accs, capsize = 6, edgecolor = "black", linewidth = 1.2)
-
-for bar, mean, std in zip (bars, mean_accs, std_accs):
-    axes[1].text(bar.get_x() + bar.get_width() / 2,
-                 bar.get_height() + std + 0.01,
-                 f"{mean.round(2)} +- {std.round(2)}",
-                 ha = "center", va = "bottom", fontsize = 9, fontweight = "bold")
-    
-axes[1].set_title("Mean CV Accuracy +- Std Deviation", fontsize = 9, fontweight = "bold")
-axes[1].set_ylabel("Mean Accuracy")
-axes[1].set_ylim([0, 1.15])
-axes[1].grid(True, alpha = 0.3, axis = "y")
-
-plt.suptitle("5-Fold Cross-Validation Comparison: All 3 CNN models",
-             fontsize = 14, fontweight = "bold")
-plt.tight_layout()
-plt.show(block = False); plt.pause(3)
-
-print("\nCross Validation complete!")
-
-# -------------------------------------------------------- HYPERPARAMETER TUNING FOR MODEL 2 ------------------------------------------------------------------------------
-# Hyperparameter tuning is performed on Model 2 (Intermidiate CNN) to find the optimal combination of hyperparameters that maximize validation accuracy. We'll tune the
-# following hyperparameters:
-# - 1) Learning rate: Controls the step size during gradient descent
-# - 2) Dropout rate: Controls regularization strength to prevent overfitting
-# - 3) Number of filters in Conv layers: Controls model capacity
-# - 4) Dense layer size: Controls the complexity of the classification head
-
-# Strategy: Grid search with 3-fold cross-validation on a subset of hyperparameter combinations. We use a smaller k = 3 for Cross Validation here (instead of 5) to keep 
-# runtime practical during grid search.
-
-print("\nHYPERPARAMETER TUNING MODEL 2 INTERMIDIATE")
-
-# Defining the hyperparameter grid to search
-# We keep the grid manageable (2-3 values per parameter) to avoid combinatorial explosion
-hyperparameter_grid = {
-    "learning_rate": [0.0001, 0.001, 0.01],           # low, medium, high
-    "dropout_rate": [0.3, 0.5, 0.7],                  # low, medium, high
-    "conv_filters": [(32, 64, 128), (64, 128, 256)],  # original vs double capacity
-    "dense_units": [64, 128, 256]
-}
-
-# Calculation of the total combinations
-total_combinations = (
-    len(hyperparameter_grid["learning_rate"]) *
-    len(hyperparameter_grid["dropout_rate"]) *
-    len(hyperparameter_grid["conv_filters"]) *
-    len(hyperparameter_grid["dense_units"])
-)
-
-print (f"Hyperparameter search space:")
-print(f" - Learning rates: {hyperparameter_grid['learning_rate']}")
-print(f" - Dropout rates: {hyperparameter_grid['dropout_rate']}")
-print(f" - Conv filter configurations: {hyperparameter_grid['conv_filters']}")
-print(f" - Dense layer sizes: {hyperparameter_grid['dense_units']}")
-print (f"\nTotal combinations to test: {total_combinations}")
-print(f"Each combination uses 3-fold CV with 10 epochs per fold")
-print(f"Estimated runtime: almost {total_combinations * 3 * 10 * 4 // 60} minutes\n")
-
-# Model builder function with configurable hyperprameters
-def build_tuned_model_2 (learning_rate, dropout_rate, conv_filters, dense_units):
-    """Build Model 2 with specified hyperparameters.
-    
-    Args:
-        learning_rate: Optimizer learning rate
-        dropout_rate: Dropout probability (0-1)
-        conv_filters: Tuple of (filters_layer1, filters_layer2, filters_layer3)
-        dense_units: Number of units in the dense layer
-    """
-
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape = (150, 150, 3)),
-
-        # Convolutional block 1
-        tf.keras.layers.Conv2D(conv_filters[0], (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-
-        # Convolutional block 2
-        tf.keras.layers.Conv2D(conv_filters[1], (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-
-        # Convolutional block 3
-        tf.keras.layers.Conv2D(conv_filters[2], (3, 3), activation = "relu"),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-
-        # Classification head
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(dense_units, activation = 'relu'),
-        tf.keras.layers.Dropout(dropout_rate),
-        tf.keras.layers.Dense(3, activation = 'softmax')
-    ], name = 'Tuned_intermidiate_CNN')
-
-    model.compile(
-        optimizer = tf.keras.optimizers.Adam(learning_rate = learning_rate),
-        loss = 'sparse_categorical_crossentropy',
-        metrics = ['accuracy']
-    )
-
-    return model
-
-# Grid search with 3-fold cross validation
-K_FOLDS_TUNING = 3
-TUNING_EPOCHS = 10
-
-kf_tuning = StratifiedKFold(n_splits = K_FOLDS_TUNING, shuffle = True, random_state = 42)
-
-# Storing the results for all hyperparameter combinations
-tuning_results = []
-
-# Generate all combinations
-all_combinations = list(itertools.product(
-    hyperparameter_grid['learning_rate'],
-    hyperparameter_grid['dropout_rate'],
-    hyperparameter_grid['conv_filters'],
-    hyperparameter_grid['dense_units']
-))
-
-for idx, (lr, dropout, filters, dense) in enumerate(all_combinations, start = 1):
-    print(f"[{idx}/{total_combinations}] Testing: LR = {lr}, Dropout = {dropout}, Filters = {filters}, Dense = {dense}")
-
-    fold_accuracies = []
-    fold_losses = []
-
-    # 3-fold cross validation for this hyperparameters combination
-    for fold_idx, (train_idx, val_idx) in enumerate(kf_tuning.split(X_cross_val, Y_cross_val), start = 1):
-        X_fold_train, X_fold_val = X_cross_val[train_idx], X_cross_val[val_idx]
-        Y_fold_train, Y_fold_val = Y_cross_val[train_idx], Y_cross_val[val_idx]
-
-        # Building the model with the current hyperparameters
-        tuned_model = build_tuned_model_2(lr, dropout, filters, dense)
-
-        # Create datasets with augmentation
-        fold_train_ds = (
-            tf.data.Dataset.from_tensor_slices((X_fold_train, Y_fold_train))
-            .batch(BATCH_SIZE)
-            .map(lambda x, y: (data_augmentation(x, training = True), y), num_parallel_calls = tf.data.AUTOTUNE)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-
-        fold_val_ds = (
-            tf.data.Dataset.from_tensor_slices((X_fold_val, Y_fold_val))
-            .batch(BATCH_SIZE)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-
-        # Train
-        tuned_model.fit(
-            fold_train_ds,
-            epochs = TUNING_EPOCHS,
-            validation_data = fold_val_ds,
-            verbose = 0
-        )
-
-        # Evaluate
-        fold_loss, fold_accuracy = tuned_model.evaluate(fold_val_ds, verbose = 0)
-        fold_accuracies.append(fold_accuracy)
-        fold_losses.append(fold_loss)
-
-        del tuned_model
-
-    # Calculate mean performance across folds
-    mean_accuracy = np.mean(fold_accuracies)
-    std_accuracy = np.std(fold_accuracies)
-    mean_loss = np.mean(fold_losses)
-
-    # Storing the results 
-    tuning_results.append({
-        'learning_rate': lr,
-        'dropout_rate': dropout,
-        'conv_filters': filters,
-        'dense_units': dense,
-        'mean_accuracy': mean_accuracy,
-        'std_accuracy': std_accuracy,
-        'mean_loss': mean_loss,
-        'fold_accuracies': fold_accuracies
-    })
-
-    print(f"Mean CV Accuracy: {mean_accuracy:.4f} +- {std_accuracy:.4f}")
-
-    # Clear session after each hyperparameter combination
-    tf.keras.backend.clear_session()
-
-# Analysis of the results
-print("\nHYPERPARAMETER TUNING RESULTS:")
-
-# We sort the results by mean accuracy (descending order)
-tuning_results_sorted = sorted(tuning_results, key = lambda x: x['mean_accuracy'], reverse = True)
-
-# Top 5 configurations
-print("\nTop 5 Hyperparameter Configurations:")
-for rank, result in enumerate(tuning_results_sorted[:5], start = 1):
-    print(f"{rank}. Mean Accuracy: {result['mean_accuracy']:.4f} +- {result['std_accuracy']:.4f}")
-    print(f" - Learning_rate: {result['learning_rate']}")
-    print(f" - Dropout_rate: {result['dropout_rate']}")
-    print(f" - Conv Filters: {result['conv_filters']}")
-    print(f" - Dense Units: {result['dense_units']}")
-    print(f" - Mean Loss: {result['mean_loss']:.4f}")
-    print(f" - Per-Fold Accuracies: {[round(a, 4) for a in result['fold_accuracies']]}\n")
-
-# Best configuration
-best_config = tuning_results_sorted[0]
-print("\nBEST HYPERPARAMETER CONFIGURATION:")
-print(f"Learning_rate: {best_config['learning_rate']}")
-print(f" - Dropout_rate: {best_config['dropout_rate']}")
-print(f" - Conv Filters: {best_config['conv_filters']}")
-print(f" - Dense Units: {best_config['dense_units']}")
-print(f" - Mean CV accuracy: {best_config['mean_accuracy']:.4f} +- {best_config['std_accuracy']:.4f}")
-print(f" - Mean CV Loss: {best_config['mean_loss']:.4f}")
-print(f" - Per-Fold Accuracies: {[round(a, 4) for a in best_config['fold_accuracies']]}\n")
-
-# Comparison withe the original Model 2 configuration
-original_config_accuracy = 0.9242    # From earlier CV results
-improvement = (best_config['mean_accuracy'] - original_config_accuracy) * 100
-
-print("COMPARISON WITH ORIGINAL MODEL 2:")
-print(f"Original Model 2 Accuracy: {original_config_accuracy:.4f}")
-print(f"Tuned Model 2 CV Accuracy: {best_config['mean_accuracy']:.4f}")
-print(f"Improvement: {improvement:+.2f} %")
-
-if improvement > 0:
-    print(f"\nHypermarameter tuning improved Model 2 performance by {improvement:.2f} %")
-else:
-    print(f"\nOriginal Hyperparameters were already near optimal (difference: {improvement:.2f} %)")
-
-# ------------------------------------------------------------- COMPARING ALL THE 3 MODELS -----------------------------------------------------------------------------------------
-print("\nCOMPATING ALL 3 MODELS ON VALIDATION SET")
-
-# Evaluate all 3 original models on validation set
-models_comparison = {
-    "Model_1 (Baseline)": model_1_baseline,
-    "Model_2 (Intermidiate)": model_2_intermidiate,
-    "Model_3 (Advanced)": model_3_advanced
-}
-
-for model_name, model in models_comparison.items():
-    print(f"\n {model_name}")
-
-    # Get predictions on validation set
-    val_predictions_probs = model.predict(val_data, verbose = 0)
-    val_predictions = np.argmax(val_predictions_probs, axis = 1)
-
-    # Calculation of the metrics
-    val_accuracy = accuracy_score(val_labels, val_predictions)
-    val_precision = precision_score(val_labels, val_predictions, average = "weighted")
-    val_recall = recall_score(val_labels, val_predictions, average = "weighted")
-    val_f1 = f1_score(val_labels, val_predictions, average = "weighted")
-
-    print(f"Accuracy: {val_accuracy:.4f}")
-    print(f"Precision: {val_precision:.4f}")
-    print(f"Recall: {val_recall:.4f}")
-    print(f"F1-score: {val_f1:.4f}")
-
-# ----------------------------------------------------------------- FINAL TEST SET EVALUATION -----------------------------------------------------------------------------------------------------
-# Since both model 2 tuned and model 3 (wthout tuning) perform really well, e will do the test set evaluation on both of them to let the results decide which one its the best
-
-# 1) MODEL 3 (BEST VALIDATION) --------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Now first, we evaluate the model 3 on the test set
-test_pred_model_3 = np.argmax(model_3_advanced.predict(test_data, verbose = 0), axis = 1)
-
-accuracy_3 = accuracy_score(test_labels, test_pred_model_3)
-precision_3 = precision_score(test_labels, test_pred_model_3, average = 'weighted')
-recall_3 = recall_score(test_labels, test_pred_model_3, average = 'weighted')
-f1_score_3 = f1_score(test_labels, test_pred_model_3, average = 'weighted')
-
-print("\nTest set metrics:")
-print(f"Accuracy: {accuracy_3:.4f}")
-print(f"Precision: {precision_3:.4f}")
-print(f"Recall: {recall_3:.4f}")
-print(f"F1-score: {f1_score_3:.4f}")
-
-# 2) MODEL 2 (WITHOUT TUNING) ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Use already trained model 2
-test_pred_model_2 = np.argmax(model_2_intermidiate.predict(test_data, verbose = 0), axis = 1)
-
-accuracy_2 = accuracy_score(test_labels, test_pred_model_2)
-precision_2 = precision_score(test_labels, test_pred_model_2, average = 'weighted')
-recall_2 = recall_score(test_labels, test_pred_model_2, average = 'weighted')
-f1_score_2 = f1_score(test_labels, test_pred_model_2, average = 'weighted')
-
-print("\nTest set metrics:")
-print(f"Accuracy: {accuracy_2:.4f}")
-print(f"Precision: {precision_2:.4f}")
-print(f"Recall: {recall_2:.4f}")
-print(f"F1-score: {f1_score_2:.4f}")
-
-# So it has a worse performance on the test set compared to the third model 
-
-# 3) MODEL 2 (TUNED) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-print("Model 2 (intermidiate) - Hyperparameter Tuned & Retrained on Train + Val")
-print("\nBest hyperparameters from grid search:")
-print(f" - Learning rate: {best_config['learning_rate']}")
-print(f" - Dropout rate: {best_config['dropout_rate']}")
-print(f" - Conv filters: {best_config['conv_filters']}")
-print(f" - Dense Units: {best_config['dense_units']}")
-
-# Building and training the model on combined data
-final_model = build_tuned_model_2(
-    learning_rate = best_config['learning_rate'],
-    dropout_rate = best_config['dropout_rate'],
-    conv_filters = best_config['conv_filters'],
-    dense_units = best_config['dense_units']
-)
-
-print("\nTraining on combined train + validation data")
+print("\nTraining on combined train + validation data (no val split — model config already fixed by tuning).")
 combined_train_data = train_data.concatenate(val_data)
 
 final_history = final_model.fit(
     combined_train_data,
-    epochs = 20,
-    verbose = 1,
-    callbacks = [tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 5, restore_best_weights = True)] 
+    epochs=20,
+    verbose=1,
+    callbacks=[tf.keras.callbacks.EarlyStopping(monitor="loss", patience=5, restore_best_weights=True)]
 )
 
-# Now we save the tuned model 2 into the models folder as well
 final_model.save("models/model_2_tuned_final.keras")
+print("\nAll models trained and saved.")
 
-test_pred_model_2_tuned = np.argmax(final_model.predict(test_data, verbose = 0), axis = 1)
-
-accuracy_2_tuned = accuracy_score(test_labels, test_pred_model_2_tuned)
-precision_2_tuned = precision_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
-recall_2_tuned = recall_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
-f1_score_2_tuned = f1_score(test_labels, test_pred_model_2_tuned, average = 'weighted')
-
-print(f"\nAccuracy: {accuracy_2_tuned:.4f}")
-print(f"Precision: {precision_2_tuned:.4f}")
-print(f"Recall: {recall_2_tuned:.4f}")
-print(f"F1-score: {f1_score_2_tuned:.4f}")
-
-# ------------------------------------------------------------ COMPARISON OF RESULTS ---------------------------------------------------------------------------------------------------------------------
-# Now we see the results and make a comparison of the performances on the test sets
-
-print("\nTEST SET COMPARISON:")
-print(f"Model 3 (Advanced, untuned): {accuracy_3:.4f}")
-print(f"Model 2 (Intermidiate, original): {accuracy_2:.4f}")
-print(f"Model 2 (Intermidiate, Tuned + retrained): {accuracy_2_tuned:.4f}")
-
-# So, we demonstrated that a well tuned simpler model can outperform a complex model with default hyperparameters and in our case we can see that the tuning worked really well because it improved the 
-# the accuracy making model tuned 2 also better then model 3 untuned
-
-# ------------------------------------------------------------ TRAINING CURVES VISUALIZATION -------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------ EVALUATION -------------------------------------------------------------------------------------------------------------------
 # Creating the figure with subplot that will contain the loss and accuracy curves of model 1 and 2
 plt.close("all")
 fig, axes = plt.subplots(2, 2, figsize = (16, 12))
@@ -1561,11 +1454,11 @@ axes[0, 1].set_ylabel("Accuracy", fontsize = 12)
 axes[0, 1].legend(fontsize = 11)
 axes[0, 1].grid(True, alpha = 0.3)
 
-# 2) MODEL 2 (INTERMIDIATE) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 2) MODEL 2 (intermediate ) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Loss curve
 axes[1, 0].plot(history_model_2.history["loss"], label = "Training loss", linewidth = 2, color = 'green')
 axes[1, 0].plot(history_model_2.history["val_loss"], label = "Validation loss", linewidth = 2, color = 'purple')
-axes[1, 0].set_title("Model 2 (Intermidiate) - Loss curve", fontsize = 14, fontweight = "bold")
+axes[1, 0].set_title("Model 2 (intermediate ) - Loss curve", fontsize = 14, fontweight = "bold")
 axes[1, 0].set_xlabel("Epoch", fontsize = 12)
 axes[1, 0].set_ylabel("Loss", fontsize = 12)
 axes[1, 0].legend(fontsize = 11)
@@ -1574,7 +1467,7 @@ axes[1, 0].grid(True, alpha = 0.3)
 # Accuracy curve
 axes[1, 1].plot(history_model_2.history["accuracy"], label = "Training accuracy", linewidth = 2, color = "green")
 axes[1, 1].plot(history_model_2.history["val_accuracy"], label = "Validation accuracy", linewidth = 2, color = "yellow")
-axes[1, 1].set_title("Model 2 (Intermidiate) - Accuracy curve", fontsize = 14, fontweight = "bold")
+axes[1, 1].set_title("Model 2 (intermediate ) - Accuracy curve", fontsize = 14, fontweight = "bold")
 axes[1, 1].set_xlabel("Epoch", fontsize = 12)
 axes[1, 1].set_ylabel("Accuracy", fontsize = 12)
 axes[1, 1].legend(fontsize = 11)
@@ -1608,7 +1501,7 @@ axes[0, 1].set_ylabel("Accuracy", fontsize = 12)
 axes[0, 1].legend(fontsize = 11)
 axes[0, 1].grid(True, alpha = 0.3)
 
-# 4) MODEL 2 (WITH TUNING)
+# 4) MODEL 2 (WITH TUNING) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Loss curve
 axes[1, 0].plot(final_history.history["loss"], label = "Training loss (Training + Val combined)", linewidth = 2, color = 'brown')
 axes[1, 0].set_title("Model 2 (Tuned) - Loss curve", fontsize = 14, fontweight = "bold")
@@ -1629,9 +1522,112 @@ plt.suptitle("Training Curves for model 3 and tuned model 2 (train + val data)",
 plt.tight_layout()
 plt.show(block = False); plt.pause(3)
 
-# ------------------------------------------------------------- MISCLASSIFIED EXAMPLES ANALYSIS -----------------------------------------------------------------------------------------------------------
-# Using the final tuned model 2 (best performing model)
-# We already have test_predictions and test_labels from earlier, but we convert the test_labels to arrays (becuase they are currently a list)
+# ------------------------------------------------------- Validation set comparison: All 3 models -------------------------------------------------------------------------------------------------------------
+print("\nCOMPARING ALL 3 MODELS ON VALIDATION SET")
+
+models_comparison = {
+    "Model 1 (Baseline)":     model_1_baseline,
+    "Model 2 (Intermediate)": model_2_intermediate,
+    "Model 3 (Advanced)":     model_3_advanced,
+}
+
+for model_name, model in models_comparison.items():
+    print(f"\n {model_name}")
+    val_predictions_probs = model.predict(val_data, verbose=0)
+    val_predictions = np.argmax(val_predictions_probs, axis=1)
+
+    print(f"  Accuracy  : {accuracy_score(val_labels, val_predictions):.4f}")
+    print(f"  Precision : {precision_score(val_labels, val_predictions, average='weighted'):.4f}")
+    print(f"  Recall    : {recall_score(val_labels, val_predictions, average='weighted'):.4f}")
+    print(f"  F1-score  : {f1_score(val_labels, val_predictions, average='weighted'):.4f}")
+
+# ------------------------------------------------------ Final Test Set Evaluation -----------------------------------------------------------------------------
+print(f"\n{'='*70}")
+print("FINAL TEST SET EVALUATION")
+print(f"{'='*70}")
+
+test_labels = np.array(test_labels)
+
+# Model 1 (Baseline, untuned)
+test_pred_model_1 = np.argmax(model_1_baseline.predict(test_data, verbose=0), axis=1)
+accuracy_1   = accuracy_score(test_labels, test_pred_model_1)
+precision_1  = precision_score(test_labels, test_pred_model_1, average="weighted")
+recall_1     = recall_score(test_labels, test_pred_model_1, average="weighted")
+f1_score_1   = f1_score(test_labels, test_pred_model_1, average="weighted")
+
+print(f"\nModel 1 (Baseline, untuned):")
+print(f"  Accuracy: {accuracy_1:.4f} | Precision: {precision_1:.4f} | Recall: {recall_1:.4f} | F1: {f1_score_1:.4f}")
+
+# Model 2 (Intermediate, original — no tuning)
+test_pred_model_2 = np.argmax(model_2_intermediate.predict(test_data, verbose=0), axis=1)
+accuracy_2   = accuracy_score(test_labels, test_pred_model_2)
+precision_2  = precision_score(test_labels, test_pred_model_2, average="weighted")
+recall_2     = recall_score(test_labels, test_pred_model_2, average="weighted")
+f1_score_2   = f1_score(test_labels, test_pred_model_2, average="weighted")
+
+print(f"\nModel 2 (Intermediate, untuned):")
+print(f"  Accuracy: {accuracy_2:.4f} | Precision: {precision_2:.4f} | Recall: {recall_2:.4f} | F1: {f1_score_2:.4f}")
+
+# Model 3 (Advanced, untuned)
+test_pred_model_3 = np.argmax(model_3_advanced.predict(test_data, verbose=0), axis=1)
+accuracy_3   = accuracy_score(test_labels, test_pred_model_3)
+precision_3  = precision_score(test_labels, test_pred_model_3, average="weighted")
+recall_3     = recall_score(test_labels, test_pred_model_3, average="weighted")
+f1_score_3   = f1_score(test_labels, test_pred_model_3, average="weighted")
+
+print(f"\nModel 3 (Advanced, untuned):")
+print(f"  Accuracy: {accuracy_3:.4f} | Precision: {precision_3:.4f} | Recall: {recall_3:.4f} | F1: {f1_score_3:.4f}")
+
+# Model 2 Tuned (retrained on train + val)
+test_pred_model_2_tuned = np.argmax(final_model.predict(test_data, verbose=0), axis=1)
+accuracy_2_tuned   = accuracy_score(test_labels, test_pred_model_2_tuned)
+precision_2_tuned  = precision_score(test_labels, test_pred_model_2_tuned, average="weighted")
+recall_2_tuned     = recall_score(test_labels, test_pred_model_2_tuned, average="weighted")
+f1_score_2_tuned   = f1_score(test_labels, test_pred_model_2_tuned, average="weighted")
+
+print(f"\nModel 2 (Tuned + retrained on Train+Val):")
+print(f"  Accuracy: {accuracy_2_tuned:.4f} | Precision: {precision_2_tuned:.4f} | Recall: {recall_2_tuned:.4f} | F1: {f1_score_2_tuned:.4f}")
+
+print(f"\n{'='*70}")
+print("TEST SET COMPARISON SUMMARY")
+print(f"{'='*70}")
+print(f"  Model 1 (Baseline, untuned)         : {accuracy_1:.4f}")
+print(f"  Model 2 (Intermediate, untuned)      : {accuracy_2:.4f}")
+print(f"  Model 3 (Advanced, untuned)          : {accuracy_3:.4f}")
+print(f"  Model 2 (Intermediate, Tuned)        : {accuracy_2_tuned:.4f}")
+
+
+# In nested CV, Model 2's reported accuracy already reflects tuned hyperparameters per fold.
+# For reference we compare it against Model 1 (baseline) and Model 3 (advanced).
+print(f"\nModel 2 nested CV accuracy (with inner tuning) : {cv_summary['model_2']['mean_accuracy']:.4f}")
+print(f"Model 1 nested CV accuracy (baseline)          : {cv_summary['model_1']['mean_accuracy']:.4f}")
+print(f"Model 3 nested CV accuracy (advanced)          : {cv_summary['model_3']['mean_accuracy']:.4f}")
+
+gain_over_baseline = (cv_summary["model_2"]["mean_accuracy"] - cv_summary["model_1"]["mean_accuracy"]) * 100
+print(f"\nModel 2 gain over baseline : {gain_over_baseline:+.2f}%")
+
+
+# ---- Confusion Matrix (Best Model: Tuned Model 2) ----
+conf_matrix = confusion_matrix(test_labels, test_pred_model_2_tuned)
+
+plt.close("all")
+plt.figure(figsize=(10, 8))
+sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues",
+            xticklabels=classes, yticklabels=classes, cbar_kws={"label": "Count"})
+plt.title("Confusion Matrix — Model 2 (Tuned)", fontsize=16, fontweight="bold")
+plt.ylabel("True label", fontsize=12)
+plt.xlabel("Predicted label", fontsize=12)
+plt.tight_layout()
+plt.show(block=False); plt.pause(3)
+
+print("\nConfusion Matrix:")
+print(conf_matrix)
+print(f"\nDiagonal (correct predictions)     : {conf_matrix.diagonal()}")
+print(f"Off-diagonal (misclassifications)  : {conf_matrix.sum() - conf_matrix.diagonal().sum()}")
+
+# ------------------------------------------------------------------ MISCLASSIFICATION ANALYSIS --------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------- VISUALIZATION OF THE MISCLASSIFIED EXAMPLES --------------------------------------------------------------------------------------------------
+# Now we get the misclassified examples
 test_labels = np.array(test_labels)
 
 # Now we find misclassified examples (using the tuned model 2 predictions)
@@ -1639,8 +1635,8 @@ misclassified_indices = np.where(test_pred_model_2_tuned != test_labels)[0]
 correctly_classified_indices = np.where(test_pred_model_2_tuned == test_labels)[0]
 
 print(f"\nTotal test samples: {len(test_labels)}")
-print(f"Correctly classified: {len(correctly_classified_indices)} ({len(correctly_classified_indices)/len(test_labels)*100:.2f})")
-print(f"Misclassified: {len(misclassified_indices)} ({len(misclassified_indices)/len(test_labels) * 100:.2f})")
+print(f"Correctly classified: {len(correctly_classified_indices)} ({len(correctly_classified_indices)/len(test_labels)*100:.2f}%)")
+print(f"Misclassified: {len(misclassified_indices)} ({len(misclassified_indices)/len(test_labels) * 100:.2f}%)")
 
 # Analysis of the misclassification
 # Create confusion analysis
@@ -1653,33 +1649,11 @@ print("\nMisclassification breakdown:")
 for pattern, count in sorted(misclassified_matrix.items(), key = lambda x: x[1], reverse = True):
     print(f"{pattern}: {count} cases")
 
-# ------------------------------------------------------------- CONFUSION MATRIX -----------------------------------------------------------------------------------------------------------------------------
-# We do the confusion matrix only for our best trained mode which is Model 2 Tuned
 
-# Calculating confusion matrix for final tuned Model 2
-conf_matrix = confusion_matrix(test_labels, test_pred_model_2_tuned)
-
-# Visualize confusion matrix
-plt.close("all")
-plt.figure(figsize = (10, 8))
-sns.heatmap(conf_matrix, annot = True, fmt = "d", cmap = "Blues", xticklabels = classes, yticklabels = classes, cbar_kws = {'label': 'Count'})
-plt.title("Confusion Matrix Model 2 Tuned", fontsize = 16, fontweight = "bold")
-plt.ylabel("True label", fontsize = 12)
-plt.xlabel("Predicted label", fontsize = 12)
-plt.tight_layout()
-plt.show(block = False); plt.pause(3)
-
-print("\nConfusion Matrix:")
-print(conf_matrix)
-print(f"\nDiagonal (correct predictions): {conf_matrix.diagonal()}")
-print(f"Off-diagonal (misclassifications): {conf_matrix.sum() - conf_matrix.diagonal().sum()}")
-
-# ------------------------------------------------------------- VISUALIZATION OF THE MISCLASSIFIED EXAMPLES --------------------------------------------------------------------------------------------------
-# Now we get the misclassified examples
 num_examples = len(misclassified_indices)
 
 if num_examples > 0:
-    # Use all misclassified examples (show up to 12, randomly sampl)
+    # Use all misclassified examples (show up to 12, randomly sampled)
     sample_size = min(12, num_examples)
 
     if num_examples > 12:
@@ -1707,7 +1681,7 @@ if num_examples > 0:
         nrows, ncols = 3, 4
         figsize = (16, 12)
 
-    # Creatin the figure
+    # Creating the figure
     plt.close("all")
     fig, axes = plt.subplots(nrows, ncols, figsize = figsize)
     axes = axes.flatten()
@@ -1780,7 +1754,7 @@ if len(misclassified_indices) > 0:
     avg_correct_confidence = np.mean(correct_confidences) * 100
 
     print("\nPrediction confidence analysis:")
-    print(f"Average confidende on CORRECT predictions: {avg_correct_confidence:.2f}%")
+    print(f"Average confidence on CORRECT predictions: {avg_correct_confidence:.2f}%")
     print(f"Average confidence on MISCLASSIFIED predictions: {avg_misc_confidence:.2f}%")
     print(f"Difference: {avg_correct_confidence - avg_misc_confidence:.2f}%")
 
@@ -1792,8 +1766,8 @@ if len(misclassified_indices) > 0:
 # ----------------------------------------------------------- POTENTIAL MODEL LIMITATIONS --------------------------------------------------------------------------------------------------------------------------
 # Based on the misclassification analysis conducted above, several potential limitations of the model can be identified:
 
-# 1) Despite achieving high test accuracy, the model still makes occasiona classification errors
-#    - While performance is exellent, the model is not perfect and misclassifies a small percentage of test samples
+# 1) Despite achieving high test accuracy, the model still makes occasional classification errors
+#    - While performance is excellent, the model is not perfect and misclassifies a small percentage of test samples
 #    - This is expected behaviour for real-world classification tasks
 
 # 2) Misclassification patterns suggest potential confusion between similar hand gestures
@@ -1802,24 +1776,24 @@ if len(misclassified_indices) > 0:
 
 # 3) Errors are more likely to occur on:
 #    - Images with unusual hand positions, angles, or orientations not well represented in training data
-#    - Images with poor lighting conditions, shadows, or low coontrast
+#    - Images with poor lighting conditions, shadows, or low contrast
 #    - Edge cases such as partially visible hands or non-stanard gesture variations
 #    - Hands with appereances (skin tone, size, accessories) that differ from the training distribution
 
 # 4) Data augmentation limitations
 #    - While augmentation significantly improved generalization, it cannot replicate all possible real-world variations
-#    - Factors like different backgrounds, extreme lightning conditions, motion blur, or hand occlusions were not fully 
+#    - Factors like different backgrounds, extreme lighting conditions, motion blur, or hand occlusions were not fully 
 #      covered by the augmentation strategy
 
 # 5) Model uncertainty awarness
-#    - Analysis of prediction confidence reveals that the model tipically shows lower confidence or misclassified examples
+#    - Analysis of prediction confidence reveals that the model typically shows lower confidence or misclassified examples
 #      compared to correct predictions, indicating appropriate uncertainty quantification
 #    - This behaviour is desirable as it allows for confidence-based filtering in production deployment
 
 # 6) Architectural considerations
 #    - Model 3 (advanced) demonstrated training instability despite achieving good final performance, suggesting that 
 #      architectural complexity requires careful hyperparameter tuning 
-#    - The tuned model 2 (intermidiate) achieved superior performance with more stable training, validating the 
+#    - The tuned model 2 (intermediate ) achieved superior performance with more stable training, validating the 
 #      importance of hyperparameter optimization over architectural complexity alone
 
 # ------------------------------------------------------------- OVERFITTING AND UNDERFITTING ANALYSIS ----------------------------------------------------------------------------------------------------------------
@@ -1838,8 +1812,8 @@ elif accuracy_gap > 0.1:
 else:
     print("Status: GOOD FIT, Model generalizes well without significant overfitting")
 
-# MODEL 2 (INTERMIDIATE)
-print("\nMODEL 2 (INTERMIDIATE)")
+# MODEL 2 (intermediate )
+print("\nMODEL 2 (intermediate )")
 print(f"Final Training Accuracy: {final_train_accuracy_2:.4f}")
 print(f"Final Validation Accuracy: {final_val_accuracy_2:.4f}")
 print(f"Accuracy Gap: {accuracy_gap_2:.4f} ({accuracy_gap_2 * 100:.2f} %)")
@@ -1902,4 +1876,98 @@ else:
 # as intended. All models learned robust features that generalize well to unseen data.
 # Model 2 (Tuned) was retrained on combined train + validation data, therefore no train-validation gap
 # analysis applies. Its strong test set performance confirms that the regularization strategies carried
-# over effectively from the original training pipeline.
+# over effectively from the original training pipeline. 
+
+# Among all the models evaluated, Model 2 (tuned) achieved the bst overall performance on the test set,
+# outperforming even the more complex Model 3 (Advanced). This result highlights a key principle in machine
+# learning: a simpler, well-tuned model can outperform a more complex architecture trained with default
+# hyperparameters. Hyperparameter optimization proved to be more impactful than increasing architectural 
+# complexity, demonstrating that careful tuning is often a more efficient path to better performance than
+# simply adding more layers or parameters.
+
+# --------------------------------------------------------- GENERALIZATION TEST --------------------------------------------------------------------------------
+# Now, we want also to valuate the model on a custom dataset with personal hand gestures images. Images were taken with a personal device under different 
+# conditions than the train data like different background (in this case with different colors in the bckground not just green), different light exposure and 
+# different hand appearance. All of these to test real-world generalization of the models implemented
+
+print("GENERALIZATION TEST: LOADING PERSONAL IMAGES")
+
+my_test_directory = Path("my_test_data")
+
+# Now we load and preprocess the personal images using the same pipeline as training
+my_test_data = tf.keras.utils.image_dataset_from_directory(
+    my_test_directory,
+    labels = "inferred",
+    label_mode = "int",
+    class_names = classes,
+    batch_size = BATCH_SIZE,
+    image_size = (64, 64),
+    shuffle = False
+)
+
+# Now we proceed with the normalization as we did with the original dataset images
+my_test_data = my_test_data.map(lambda x, y: (normalization_layer(x), y))
+
+# Then, we get the true labels ones
+my_true_labels = np.concatenate([y.numpy() for _, y in my_test_data])
+
+# Then, we evaluate all models performance on the personal images
+generalization_models = {
+    "Model 1 (Baseline)": model_1_baseline,
+    "Model 2 (Intermediate)": model_2_intermediate,
+    "Model 3 (Advanced)": model_3_advanced,
+    "Model 2 (Tuned)": final_model
+}
+
+print(f"\nTotal personal images tested: {len(my_true_labels)}")
+
+for model_name, model in generalization_models.items():
+    my_pred_probs = model.predict(my_test_data, verbose = 0)
+    my_pred_labels = np.argmax(my_pred_probs, axis = 1)
+    my_accuracy = accuracy_score(my_true_labels, my_pred_labels)
+
+    print(f"\n{model_name} --- Overall Accuracy: {my_accuracy:.4f}")
+    for i, (true, pred, probs) in enumerate(zip(my_true_labels, my_pred_labels, my_pred_probs)):
+        confidence = probs[pred] * 100
+        status = "True" if true == pred else "False"
+        print(f"[{status}] True: {classes[true]:8s} | Predicted: {classes[pred]:8s} | Confidence: {confidence:.1f}%")
+
+    print(f"Per-class results:")
+    for class_idx, class_name in enumerate(classes):
+        class_mask = my_true_labels == class_idx
+        if class_mask.sum() > 0:
+            class_acc = accuracy_score(my_true_labels[class_mask], my_pred_labels[class_mask])
+            print(f"{class_name}: {class_acc:.2f} accuracy ({class_mask.sum()} images)")
+
+# --------------------------------------------------- MISCLASSIFIED GENERALIZATION TEST IMAGES ---------------------------------------------------------------------
+# Now we do the visualization of the misclassified personal images (using model 2 tuned which its the best model for its simplicity in respect to model 3)
+my_pred_probs_tuned = final_model.predict(my_test_data, verbose = 0)
+my_pred_labels_tuned = np.argmax(my_pred_probs_tuned, axis=1)
+my_misclassified = np.where(my_pred_labels_tuned != my_true_labels)[0]
+
+if len(my_misclassified) > 0:
+    # Get all personal images
+    my_images_list = []
+    for images_batch, _ in my_test_data:
+        my_images_list.append(images_batch.numpy())
+    my_images = np.concatenate(my_images_list, axis=0)
+
+    plt.close("all")
+    fig, axes = plt.subplots(1, len(my_misclassified), figsize=(5 * len(my_misclassified), 5))
+    if len(my_misclassified) == 1:
+        axes = [axes]
+
+    for idx, sample_idx in enumerate(my_misclassified):
+        confidence = my_pred_probs_tuned[sample_idx][my_pred_labels_tuned[sample_idx]] * 100
+        axes[idx].imshow(my_images[sample_idx])
+        axes[idx].axis("off")
+        axes[idx].set_title(
+            f"True: {classes[my_true_labels[sample_idx]]}\nPredicted: {classes[my_pred_labels_tuned[sample_idx]]}\nConfidence: {confidence:.1f}%",
+            fontsize=11, color="red", fontweight="bold"
+        )
+
+    plt.suptitle("Misclassified Personal Images - Model 2 (Tuned)", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.show(block=False); plt.pause(3)
+else:
+    print("\nNo misclassified personal images — perfect classification on personal dataset")
