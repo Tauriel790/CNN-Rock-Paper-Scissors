@@ -8,7 +8,7 @@ The project prioritizes methodological rigor over raw accuracy, implementing pro
 The dataset used is [Rock-Paper-Scissors dataset](https://www.kaggle.com/datasets/drgfreeman/rockpaperscissors) downloaded from kaggle containing 2188 images across 3 balanced classes (paper, rock, scissors), all photographed against a green screen background.
 
 ## Project structure
-
+```
 /rock_paper_scissors
 │
 ├── data/                        # Dataset directory (not included in repository)
@@ -28,6 +28,7 @@ The dataset used is [Rock-Paper-Scissors dataset](https://www.kaggle.com/dataset
 ├── rps.ipynb                    # Jupyter Notebook version with outputs and visualizations
 ├── .gitignore
 └── README.md
+```
 
 ## Data Preprocessing
 Before any model training, the dataset was carefully preprocessed to ensure zero data leakage and full reproducibility. The images were first split at the file level into training (70%), validation (15%), and test (15%) sets using a fixed random seed (42), guaranteeing that no information from the validation or test sets could influence the training pipeline.
