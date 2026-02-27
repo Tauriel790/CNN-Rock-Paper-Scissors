@@ -10,22 +10,25 @@ The dataset used is [Rock-Paper-Scissors dataset](https://www.kaggle.com/dataset
 ## Project structure
 ```
 /rock_paper_scissors
-│
-├── data/                        # Dataset directory (not included in repository)
+|
+├── data/                          # Dataset directory (not included in repository)
 │   ├── paper/
 │   ├── rock/
 │   └── scissors/
-│
-├── models/                      # Saved model files (not included in repository)
+|
+├── models/                        # Saved model files (not included in repository)
 │   ├── model_1_baseline.keras
 │   ├── model_2_intermediate.keras
 │   ├── model_3_advanced.keras
 │   └── model_2_tuned_final.keras
-│
-├── my_test_data/                # Personal generalization test images (not included for privacy)
-│
-├── rps.py                       # Python script version of the full pipeline
-├── rps.ipynb                    # Jupyter Notebook version with outputs and visualizations
+|
+├── my_test_data/                  # Personal generalization test images (not included for privacy)
+|
+├── .vscode/                       # VS Code settings
+├── rps.py                         # Python script version of the full pipeline
+├── rps.ipynb                      # Jupyter Notebook version with outputs and visualizations
+├── ML_report_GV.pdf               # Project report
+├── requirements.txt               # Python dependencies
 ├── .gitignore
 └── README.md
 ```
