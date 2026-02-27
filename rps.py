@@ -1837,7 +1837,6 @@ else:
 
 # Analysis summary ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # OBSERVATIONS:
-# All three models achieved good fit without significant overfitting or underfitting.
 
 # Model 1 and model 2: Training accuracy lower than validation accuracy (negative gap)
 # - This counterintuitive result is caused by data augmentation making training harder
@@ -1845,11 +1844,11 @@ else:
 # - Negative gap is desirable, because it confirms that models generalize well without memorizing training data
 # - Dropout in Model 2 further increased the negative gap while improving generalization
 
-# Model 3: Training and validation accuracy nearly equal
-# - BatchNormalization and GlobalAveragePooling enabled high training accuracy without overfitting
-# - Lower dropout rate (0.3 vs 0.5) allowed closer fit to training data
-# - Training curves showed initial instability requiring extended warmup period
-# - After stabilization, achieved excellent performance without overfitting
+# Model 3: Training accuracy higher than validation accuracy (positive gap)
+# - BatchNormalization warmup instability caused erratic validation accuracy during early epochs
+# - Lower dropout rate (0.3 vs 0.5) allowed closer fit to training data, contributing to the gap
+# - Early stopping restored the best weights, but some overfitting was still detected
+# - Despite the gap, Model 3 still achieved the highest test accuracy among all models
 
 # REGULARIZATION STRATEGIES EMPLOYED:
 
