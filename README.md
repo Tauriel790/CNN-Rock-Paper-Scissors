@@ -1,5 +1,8 @@
 # Rock-Paper-Scissors CNN Classification project
 
+## Report
+See the project report here: [ML_report_GV.pdf](ML_report_GV.pdf)
+
 ## Overview
 This project develops and evaluates Convolutional Neural Networks (CNNs) to accurately classify hand gestures corresponding to the Rock-Paper-Scissors game. The work was carried out as part of the Machine Learning course assignment, with the objective of following sound statistical and machine learning practices across the full pipeline, from data processing to model evaluation. 
 
